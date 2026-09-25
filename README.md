@@ -19,7 +19,7 @@ It publishes too: a video or a photo carousel, or a draft into your TikTok inbox
 
 Everything is scoped to accounts you connect yourself.
 
-Built and maintained by [Navid Moazzez](https://navid.me?utm_source=github&utm_medium=readme&utm_campaign=tiktok-mcp-cli).
+Built and maintained by [Navid Moazzez](https://navid.me?utm_source=github&utm_medium=referral&utm_campaign=tiktok-mcp-cli&utm_content=readme).
 
 ```
 You:    Which of my TikToks beat my median view count this year, and what do they share?
