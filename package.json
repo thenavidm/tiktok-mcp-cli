@@ -1,12 +1,13 @@
 {
   "name": "@thenavidm/tiktok-mcp-cli",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "TikTok MCP server and CLI for Claude Code and AI agents. 14 tools for your profile, video stats, top posts, publishing videos and photo carousels, drafts and post status.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
     "tiktok-mcp": "dist/index.js",
-    "tiktok-cli": "dist/index.js"
+    "tiktok-cli": "dist/index.js",
+    "tiktok-mcp-cli": "dist/npx.js"
   },
   "engines": {
     "node": ">=20"
