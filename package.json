@@ -1,6 +1,6 @@
 {
   "name": "@thenavidm/tiktok-mcp-cli",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "TikTok MCP server and CLI for Claude Code and AI agents. 14 tools for your profile, video stats, top posts, publishing videos and photo carousels, drafts and post status.",
   "type": "module",
   "main": "./dist/index.js",
@@ -23,7 +23,7 @@
     "build:mcpb": "bash desktop-extension/build.sh"
   },
   "dependencies": {
-    "@thenavidm/slipway": "^0.1.10",
+    "@thenavidm/slipway": "^0.1.17",
     "zod": "^4.2.0"
   },
   "devDependencies": {

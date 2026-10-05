@@ -110,11 +110,13 @@ describe("documentation stays in step with the code", () => {
     expect([...(await used())].filter((v) => !documented.has(v))).toEqual([]);
   });
 
-  it("lists every environment variable in --help", async () => {
+  // Since Slipway 0.1.15 the help names the settings that connect an account and the safety
+  // switches, and counts the rest, which agent-context describes one by one.
+  it("names every environment variable in --help or agent-context", async () => {
     const help = (await cli(app, ["--help"], { env: BASE })).stdout;
-    // The help groups the HTTP ones as `TIKTOK_HTTP_PORT / _HOST / _TOKEN / _ALLOWED_ORIGINS`.
-    const shorthand = new Set(["TIKTOK_HTTP_HOST", "TIKTOK_HTTP_TOKEN", "TIKTOK_HTTP_ALLOWED_ORIGINS"]);
-    expect([...(await used())].filter((v) => !help.includes(v) && !shorthand.has(v))).toEqual([]);
+    const context = JSON.parse((await cli(app, ["agent-context"], { env: BASE })).stdout);
+    const described = new Set(context.settings.map((setting: { env: string }) => setting.env));
+    expect([...(await used())].filter((v) => !help.includes(v) && !described.has(v))).toEqual([]);
   });
 
   it.each(["../README.md", "../INSTALL.md"])("has no dead in-page anchors in %s", (file) => {
