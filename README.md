@@ -113,7 +113,7 @@ is the tool name with dashes.
 | Sign in once | `tiktok-cli login` | not a tool |
 | Check your setup | `tiktok-cli doctor` | not a tool |
 
-All 14 are in [section 7](#7-tools-).
+All 14 are in [section 7](#7-tools-%EF%B8%8F).
 
 ## Contents
 
@@ -125,11 +125,11 @@ All 14 are in [section 7](#7-tools-).
 | 4 | [Connect your client](#4-connect-your-client-) | Claude Code, Desktop, Cursor |
 | 5 | [Check it worked](#5-check-it-worked-) | `doctor` |
 | 6 | [Which surface, and what each costs](#6-which-surface-and-what-each-costs) | Measured in Claude Code, and how to spend less |
-| 7 | [Tools](#7-tools-) | All 14, by what they reach |
+| 7 | [Tools](#7-tools-%EF%B8%8F) | All 14, by what they reach |
 | 8 | [Output and exit codes](#8-output-and-exit-codes) | What scripts branch on |
 | 9 | [Environment variables](#9-environment-variables) | Credentials, safety, tuning |
 | 10 | [Writing safely](#10-writing-safely-) | What is guarded and what is not |
-| 11 | [Notes and gotchas](#11-notes-and-gotchas-) | The platform's real behavior |
+| 11 | [Notes and gotchas](#11-notes-and-gotchas-%EF%B8%8F) | The platform's real behavior |
 | 12 | [Troubleshooting](#12-troubleshooting-) | Symptom to cause |
 | 13 | [FAQ](#13-faq-) | Including what an MCP server is |
 

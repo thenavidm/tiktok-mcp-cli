@@ -119,16 +119,16 @@ describe("documentation stays in step with the code", () => {
 
   it.each(["../README.md", "../INSTALL.md"])("has no dead in-page anchors in %s", (file) => {
     if (!existsSync(new URL(file, import.meta.url))) return; // repo may ship one doc
-    const md = read(file);
-    const slugs = new Set<string>();
-    for (const [, heading] of md.matchAll(/^#{2,4} (.+)$/gm)) {
-      const stripped = (heading as string).toLowerCase().replace(/[^\w\s-]/g, "");
-      // GitHub keeps the trailing hyphen when a heading ends in an emoji.
-      slugs.add(stripped.trim().replace(/\s+/g, "-"));
-      slugs.add(stripped.replace(/\s+/g, "-"));
-    }
+    const md = read(file).replace(/```[\s\S]*?```/g, "");
+    // GitHub's slug keeps letters, marks, numbers and connector punctuation, so an
+    // emoji's variation selector (U+FE0F) stays in the anchor and a link has to carry it.
+    const slugs = new Set(
+      [...md.matchAll(/^#{1,6} (.+)$/gm)].map(([, heading]) =>
+        (heading as string).trim().toLowerCase().replace(/[^\p{L}\p{M}\p{N}\p{Pc}\s-]/gu, "").replace(/ /g, "-"),
+      ),
+    );
     const dead = [...md.matchAll(/\[[^\]]+\]\(#([^)]+)\)/g)]
-      .map((m) => m[1] as string)
+      .map((m) => decodeURIComponent(m[1] as string))
       .filter((a) => !slugs.has(a));
     expect(dead).toEqual([]);
   });
