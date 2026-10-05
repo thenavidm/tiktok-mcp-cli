@@ -1,4 +1,4 @@
-import { frame } from "../safety.js";
+import { frame } from "./frame.js";
 
 /**
  * Shaping TikTok's payloads for a model rather than passing raw JSON through.

@@ -1,256 +1,122 @@
 /**
- * The CLI adapter.
+ * The two surfaces, now that Slipway builds both from ALL_TOOLS.
  *
- * What matters here is that the shell surface is derived from the tool specs
- * rather than described a second time, so the tests that count are the ones
- * asserting parity with ALL_TOOLS and the ones covering the argv shapes a
- * person actually types.
+ * Parsing, help and the exit-code contract are Slipway's and tested there. What
+ * matters here: every tool arrives on both surfaces intact, publishing still
+ * asks first and still disappears with destructive writes off, `auth` still
+ * signs in as 1.1 named it, TikTok's errors keep their exit codes, and the
+ * docs stay in step with the code.
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
-import { EXIT, exitCodeFor, flagsFor, parseArgs, isCliCommand, selectFields } from "../src/cli.js";
+import { EXIT } from "@thenavidm/slipway";
+import { checkApp, cli, connect } from "@thenavidm/slipway/testing";
 import { TikTokError } from "../src/api/errors.js";
+import { app } from "../src/app.js";
 import { ALL_TOOLS } from "../src/tools/index.js";
+import { toSlipway } from "../src/tools/kit.js";
 
-describe("flagsFor", () => {
-  it("derives a flag per schema key, kebab-cased", () => {
-    const flags = flagsFor({ privacy_level: z.string().optional() });
-    expect(flags[0]).toMatchObject({ key: "privacy_level", flag: "--privacy-level", kind: "string" });
+const BASE = { TIKTOK_CLIENT_KEY: "key", TIKTOK_CLIENT_SECRET: "secret", TIKTOK_REFRESH_TOKEN: "refresh" };
+const NOTHING = { TIKTOK_CLIENT_KEY: "", TIKTOK_CLIENT_SECRET: "", TIKTOK_REFRESH_TOKEN: "", TIKTOK_ACCOUNTS: "" };
+const post = ["post-video", "--video-url", "https://example.com/v.mp4", "--privacy-level", "SELF_ONLY"];
+
+describe("TikTok on Slipway", () => {
+  it("offers every tool as a command and over MCP, under the same names", async () => {
+    const list = await cli(app, [], { env: BASE });
+    for (const tool of ALL_TOOLS) expect(list.stdout).toContain(tool.command);
+    const mcp = await connect(app, { env: BASE });
+    const names = (await mcp.listTools()).map((tool) => tool.name).sort();
+    await mcp.close();
+    expect(names).toEqual(ALL_TOOLS.map((tool) => tool.name).sort());
   });
 
-  it("reads required from the absence of .optional()", () => {
-    const flags = flagsFor({ video_url: z.string(), account: z.string().optional() });
-    expect(flags.find((f) => f.key === "video_url")?.required).toBe(true);
-    expect(flags.find((f) => f.key === "account")?.required).toBe(false);
+  it("refuses to publish without --confirm, before anything reaches TikTok", async () => {
+    const run = await cli(app, post, { env: BASE });
+    expect(run.code).toBe(2);
+    expect(JSON.parse(run.stderr).code).toBe("refused");
+    expect(run.stderr).toContain("--confirm");
   });
 
-  it("carries .describe() through as help", () => {
-    const flags = flagsFor({ title: z.string().describe("The post caption.") });
-    expect(flags[0]?.help).toBe("The post caption.");
+  it("takes publishing off the list with TIKTOK_ALLOW_DESTRUCTIVE=0, as 1.1 did, and refuses it if called", async () => {
+    const off = { ...BASE, TIKTOK_ALLOW_DESTRUCTIVE: "0" };
+    const list = await cli(app, [], { env: off });
+    expect(list.stdout).not.toContain("post-video");
+    expect(list.stdout).toContain("send-video-to-drafts");
+    expect(list.stdout).toContain("3 irreversible writes are hidden by TIKTOK_ALLOW_DESTRUCTIVE=0.");
+    const run = await cli(app, [...post, "--confirm"], { env: off });
+    expect(run.code).toBe(2);
+    expect(run.stderr).toContain("TIKTOK_ALLOW_DESTRUCTIVE=0");
   });
 
-  it("finds the description whichever side of .optional() it was chained", () => {
-    const outer = flagsFor({ a: z.string().optional().describe("outer") });
-    const inner = flagsFor({ b: z.string().describe("inner").optional() });
-    expect(outer[0]?.help).toBe("outer");
-    expect(inner[0]?.help).toBe("inner");
+  it("calls a run with nothing configured not configured, exit 10", async () => {
+    expect((await cli(app, ["get-profile"], { env: NOTHING })).code).toBe(EXIT.notConfigured);
+    expect((await cli(app, ["doctor"], { env: NOTHING })).code).toBe(EXIT.notConfigured);
   });
 
-  it("exposes an enum's values as choices", () => {
-    const flags = flagsFor({ sort: z.enum(["views", "likes"]).optional() });
-    expect(flags[0]).toMatchObject({ kind: "enum", choices: ["views", "likes"] });
+  it("keeps 1.1's `auth` beside `login`, and both say what they need first", async () => {
+    const auth = await cli(app, ["auth"], { env: NOTHING });
+    expect(auth.code).toBe(EXIT.notConfigured);
+    expect(auth.stderr).toContain("TIKTOK_CLIENT_KEY");
+    expect((await cli(app, ["login"], { env: NOTHING })).code).toBe(EXIT.notConfigured);
+    expect((await cli(app, ["login", "--help"], { env: NOTHING })).stdout).toContain("Usage: tiktok-cli login [--publish] [--port N]");
   });
 
-  it("marks a scalar array repeatable and an object array json", () => {
-    const flags = flagsFor({
-      photo_urls: z.array(z.string()).optional(),
-      images: z.array(z.object({ url: z.string() })).optional(),
-    });
-    expect(flags.find((f) => f.key === "photo_urls")).toMatchObject({
-      kind: "string",
-      repeatable: true,
-    });
-    expect(flags.find((f) => f.key === "images")).toMatchObject({ kind: "json", repeatable: true });
-  });
-
-  /**
-   * An enum element is a word you type, so an array of them is repeatable
-   * rather than JSON. Treating it as JSON meant `--flag VALUE` was rejected and
-   * you had to write `--flag '"VALUE"'` instead.
-   */
-  it("treats an array of enums as a repeatable scalar, not JSON", () => {
-    const flags = flagsFor({ levels: z.array(z.enum(["PUBLIC_TO_EVERYONE", "SELF_ONLY"])).optional() });
-    expect(flags[0]).toMatchObject({ kind: "string", repeatable: true });
-    expect(parseArgs(["--levels", "SELF_ONLY"], flags)).toEqual({ levels: ["SELF_ONLY"] });
-  });
-});
-
-describe("parseArgs", () => {
-  const flags = flagsFor({
-    video_url: z.string(),
-    limit: z.number().optional(),
-    confirm: z.boolean().optional(),
-    photo_urls: z.array(z.string()).optional(),
-    link: z.object({ uri: z.string() }).optional(),
-    privacy_level: z.enum(["PUBLIC_TO_EVERYONE", "SELF_ONLY"]).optional(),
-  });
-
-  it("accepts --flag value and --flag=value alike", () => {
-    expect(parseArgs(["--video-url", "https://x.test/a.mp4"], flags)).toEqual({
-      video_url: "https://x.test/a.mp4",
-    });
-    expect(parseArgs(["--video-url=https://x.test/a.mp4"], flags)).toEqual({
-      video_url: "https://x.test/a.mp4",
-    });
-  });
-
-  it("accepts the underscore spelling of a flag", () => {
-    expect(parseArgs(["--privacy_level", "SELF_ONLY"], flags)).toEqual({ privacy_level: "SELF_ONLY" });
-  });
-
-  it("treats a boolean as a bare switch", () => {
-    expect(parseArgs(["--video-url", "u", "--confirm"], flags)).toEqual({
-      video_url: "u",
-      confirm: true,
-    });
-    expect(parseArgs(["--confirm=false"], flags)).toEqual({ confirm: false });
-  });
-
-  it("coerces numbers, and refuses ones that are not", () => {
-    expect(parseArgs(["--limit", "25"], flags)).toEqual({ limit: 25 });
-    expect(() => parseArgs(["--limit", "many"], flags)).toThrow(/expects a number/);
-  });
-
-  it("parses a json flag, and refuses malformed json", () => {
-    expect(parseArgs(['--link={"uri":"https://x.com"}'], flags)).toEqual({
-      link: { uri: "https://x.com" },
-    });
-    expect(() => parseArgs(["--link", "{oops"], flags)).toThrow(/expects JSON/);
-  });
-
-  it("collects a repeatable flag into an array", () => {
-    expect(parseArgs(["--photo-urls", "a", "--photo-urls", "b"], flags)).toEqual({
-      photo_urls: ["a", "b"],
-    });
-  });
-
-  it("checks an enum against its choices", () => {
-    expect(() => parseArgs(["--privacy-level", "FRIENDS"], flags)).toThrow(/expects one of/);
-  });
-
-  it("fills the first required flag from a bare argument", () => {
-    expect(parseArgs(["https://x.test/a.mp4"], flags)).toEqual({ video_url: "https://x.test/a.mp4" });
-  });
-
-  it("wraps a bare argument when the required flag is repeatable", () => {
-    const repeatable = flagsFor({ video_ids: z.array(z.string()) });
-    expect(parseArgs(["7412345"], repeatable)).toEqual({ video_ids: ["7412345"] });
-  });
-
-  it("refuses an unknown option rather than dropping it", () => {
-    expect(() => parseArgs(["--nope", "x"], flags)).toThrow(/Unknown option/);
-  });
-
-  it("refuses a second bare argument", () => {
-    expect(() => parseArgs(["one", "two"], flags)).toThrow(/Unexpected argument/);
+  it("passes slipway check", async () => {
+    const report = await checkApp(app, { env: BASE });
+    expect(report.findings.filter((finding) => finding.level === "error")).toEqual([]);
   });
 });
 
-describe("exitCodeFor", () => {
-  it("calls a missing credential a config error, not an auth one", () => {
-    // The message names a refresh token, so an auth-first order sent someone
-    // who had configured nothing looking for an expired credential.
-    const nothing = new Error(
-      "No TikTok account configured. Run `npx -y @thenavidm/tiktok-mcp-cli auth` to get a refresh token, then set TIKTOK_REFRESH_TOKEN.",
-    );
-    expect(exitCodeFor(nothing)).toBe(EXIT.config);
-    expect(exitCodeFor(new TikTokError("TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET are not set.", undefined, 0))).toBe(
-      EXIT.config,
-    );
+describe("TikTok's errors keep their exit codes and their log id", () => {
+  it.each([
+    ["scope_not_authorized", 403, EXIT.auth],
+    ["access_token_invalid", 401, EXIT.auth],
+    ["rate_limit_exceeded", 429, EXIT.rateLimited],
+    ["spam_risk_too_many_posts", 403, EXIT.rateLimited],
+    ["privacy_level_option_mismatch", 400, EXIT.usage],
+    ["url_ownership_unverified", 403, EXIT.usage],
+    ["invalid_publish_id", 400, EXIT.notFound],
+    ["spam_risk_user_banned_from_posting", 403, EXIT.usage],
+  ])("%s exits %i", (code, status, exit) => {
+    const error = toSlipway(new TikTokError("TikTok said no.", code, status, "log-1"));
+    expect(error.exitCode).toBe(exit);
+    expect(error.details).toMatchObject({ tiktok_code: code, log_id: "log-1" });
   });
 
-  it("maps a rejected token to auth and a rate limit to its own code", () => {
-    expect(exitCodeFor(new TikTokError("The access token was rejected.", "access_token_invalid", 401))).toBe(EXIT.auth);
-    expect(exitCodeFor(new TikTokError("Rate limited by TikTok.", "rate_limit_exceeded", 429))).toBe(EXIT.rateLimited);
-  });
-
-  /**
-   * A refused write is a usage problem, not an API failure. Reporting exit 5
-   * told a script the call had failed upstream and was worth retrying, when in
-   * fact nothing left the machine and retrying unchanged refuses again.
-   */
-  it("calls a refused write a usage error, not an API one", () => {
-    const noConfirm = new Error(
-      "post_video is not reversible, so it needs --confirm. Nothing has been changed. Post a video to @navid.",
-    );
-    expect(exitCodeFor(noConfirm)).toBe(EXIT.usage);
-    expect(exitCodeFor(new Error("post_video is unavailable: this server is running with TIKTOK_READ_ONLY=1."))).toBe(
-      EXIT.usage,
-    );
-    expect(
-      exitCodeFor(new Error("post_video is unavailable: this server is running with TIKTOK_ALLOW_DESTRUCTIVE=0.")),
-    ).toBe(EXIT.usage);
-  });
-
-  it("maps a missing publish_id to not found", () => {
-    expect(exitCodeFor(new TikTokError("No post with that publish_id.", "invalid_publish_id", 400))).toBe(
-      EXIT.notFound,
-    );
-  });
-});
-
-describe("selectFields", () => {
-  it("keeps only the named fields and descends dotted paths element-wise", () => {
-    const data = { videos: [{ id: "1", title: "a", stats: { views: 9, likes: 2 } }], cursor: 5 };
-    expect(selectFields(data, ["videos"])).toEqual({ videos: data.videos });
-    expect(selectFields(data.videos, ["id", "stats.views"])).toEqual([{ id: "1", stats: { views: 9 } }]);
-  });
-});
-
-describe("parity with the MCP surface", () => {
-  it("routes every tool name, in both spellings", () => {
-    for (const tool of ALL_TOOLS) {
-      expect(isCliCommand([tool.name])).toBe(true);
-      expect(isCliCommand([tool.name.replace(/_/g, "-")])).toBe(true);
-    }
-  });
-
-  it("builds flags for every tool without throwing", () => {
-    for (const tool of ALL_TOOLS) {
-      expect(() => flagsFor(tool.schema)).not.toThrow();
-    }
-  });
-
-  it("gives every schema key a flag", () => {
-    for (const tool of ALL_TOOLS) {
-      expect(flagsFor(tool.schema)).toHaveLength(Object.keys(tool.schema).length);
-    }
-  });
-
-  it("leaves the server's own flags alone", () => {
-    expect(isCliCommand(["--http"])).toBe(false);
-    expect(isCliCommand(["--version"])).toBe(false);
-    expect(isCliCommand([])).toBe(false);
-  });
-
-  /**
-   * `auth` and `doctor` are server subcommands, not tools. If one ever shared a
-   * name with a tool the dispatch in index.ts would route it to the wrong half.
-   */
-  it("does not collide with the server's own subcommands", () => {
-    for (const word of ["auth", "doctor", "help"]) {
-      expect(isCliCommand([word])).toBe(false);
-    }
+  it("goes by status when TikTok sends no code, and calls a failure with nothing to go on TikTok's", () => {
+    expect(toSlipway(new TikTokError("TikTok returned HTTP 503", undefined, 503)).exitCode).toBe(EXIT.api);
+    expect(toSlipway(new TikTokError("Something odd", undefined, 0)).exitCode).toBe(EXIT.api);
   });
 });
 
 describe("documentation stays in step with the code", () => {
   const read = (p: string): string => readFileSync(new URL(p, import.meta.url), "utf-8");
-  const names = (text: string): Set<string> => new Set(text.match(/TIKTOK_[A-Z_]+/g) ?? []);
+  // TIKTOK_API is the API root in src/api/client.ts, a constant, not a setting.
+  const names = (text: string): Set<string> => new Set((text.match(/TIKTOK_[A-Z_]+/g) ?? []).filter((name) => !name.endsWith("_") && name !== "TIKTOK_API"));
+  const source = (dir: string): string =>
+    readdirSync(new URL(dir, import.meta.url), { withFileTypes: true })
+      .map((entry) => (entry.isDirectory() ? source(`${dir}${entry.name}/`) : entry.name.endsWith(".ts") ? read(`${dir}${entry.name}`) : ""))
+      .join("\n");
 
-  /**
-   * Two variables shipped undocumented and five never reached `--help`, which is
-   * the kind of drift nobody notices because both sides look complete on their own.
-   */
-  it("documents every environment variable the code reads", () => {
-    const used = names(["config.ts", "transport/http.ts"].map((f) => read(`../src/${f}`)).join("\n"));
+  /** Every variable the server reads: this repo's code, and Slipway's as agent-context lists them. */
+  const used = async (): Promise<Set<string>> => {
+    const context = JSON.parse((await cli(app, ["agent-context"], { env: BASE })).stdout);
+    return new Set([...names(source("../src/")), ...context.settings.map((setting: { env: string }) => setting.env)]);
+  };
+
+  it("documents every environment variable the code reads", async () => {
     const documented = names(read("../README.md"));
-    expect([...used].filter((v) => !documented.has(v))).toEqual([]);
+    expect([...(await used())].filter((v) => !documented.has(v))).toEqual([]);
   });
 
-  it("lists every environment variable in --help", () => {
-    const used = names(["config.ts", "transport/http.ts"].map((f) => read(`../src/${f}`)).join("\n"));
-    const helped = names(read("../src/index.ts"));
-    expect([...used].filter((v) => !helped.has(v))).toEqual([]);
+  it("lists every environment variable in --help", async () => {
+    const help = (await cli(app, ["--help"], { env: BASE })).stdout;
+    // The help groups the HTTP ones as `TIKTOK_HTTP_PORT / _HOST / _TOKEN / _ALLOWED_ORIGINS`.
+    const shorthand = new Set(["TIKTOK_HTTP_HOST", "TIKTOK_HTTP_TOKEN", "TIKTOK_HTTP_ALLOWED_ORIGINS"]);
+    expect([...(await used())].filter((v) => !help.includes(v) && !shorthand.has(v))).toEqual([]);
   });
 
-  /**
-   * Two in-page links pointed at headings that had been renamed, including the
-   * one row routing a shell user to the CLI. The ship checklist's link pass only
-   * greps http, so a dead `#anchor` is the kind that ships quietly.
-   */
   it.each(["../README.md", "../INSTALL.md"])("has no dead in-page anchors in %s", (file) => {
     if (!existsSync(new URL(file, import.meta.url))) return; // repo may ship one doc
     const md = read(file);

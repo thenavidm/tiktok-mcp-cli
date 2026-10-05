@@ -6,6 +6,8 @@
  * `args` separately and getting the quoting right twice.
  */
 
+import { NotConfiguredError, UsageError } from "@thenavidm/slipway";
+
 export type Account = {
   /** Label used to target this account from a tool call. */
   name: string;
@@ -90,7 +92,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
  */
 export function pickAccount(accounts: Account[], want?: string | null): Account {
   if (accounts.length === 0) {
-    throw new Error(
+    throw new NotConfiguredError(
       "No TikTok account configured. Run `npx -y @thenavidm/tiktok-mcp-cli auth` to get a refresh token, then set TIKTOK_REFRESH_TOKEN.",
     );
   }
@@ -104,7 +106,7 @@ export function pickAccount(accounts: Account[], want?: string | null): Account 
 
   const names = accounts.map((a) => a.name).join(", ");
   if (prefix.length > 1) {
-    throw new Error(`"${want}" matches more than one account (${names}). Use the full name.`);
+    throw new UsageError(`"${want}" matches more than one account (${names}). Use the full name.`);
   }
-  throw new Error(`No connected TikTok account named "${want}". Configured: ${names}.`);
+  throw new UsageError(`No connected TikTok account named "${want}". Configured: ${names}.`);
 }

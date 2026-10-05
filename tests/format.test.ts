@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { shapeVideo, summarise } from "../src/format/videos.js";
-import { frame, WriteGuard } from "../src/safety.js";
+import { frame } from "../src/format/frame.js";
 import { loadConfig } from "../src/config.js";
 
 describe("video shaping", () => {
@@ -80,38 +80,5 @@ describe("injection framing", () => {
        caption that could close ours early would put its own text outside the
        block, which is the entire point of fencing it. */
     expect(framed.split(/^```$/m).length - 1).toBe(2);
-  });
-});
-
-describe("write guard", () => {
-  const base = { TIKTOK_CLIENT_KEY: "k", TIKTOK_CLIENT_SECRET: "s", TIKTOK_REFRESH_TOKEN: "r" };
-
-  it("refuses an irreversible call with no confirm", () => {
-    const guard = new WriteGuard(loadConfig(base as NodeJS.ProcessEnv));
-    expect(() => guard.check("post_video", "destructive", undefined, "Publish a video.")).toThrow(
-      /confirm: true/,
-    );
-  });
-
-  it("allows an irreversible call that confirmed", () => {
-    const guard = new WriteGuard(loadConfig(base as NodeJS.ProcessEnv));
-    expect(() => guard.check("post_video", "destructive", true, "Publish a video.")).not.toThrow();
-  });
-
-  it("never asks a plain write to confirm", () => {
-    const guard = new WriteGuard(loadConfig(base as NodeJS.ProcessEnv));
-    expect(() => guard.check("send_video_to_drafts", "write", undefined, "Draft.")).not.toThrow();
-  });
-
-  it("hides writes in read-only mode and destructive ones on their own switch", () => {
-    const readOnly = new WriteGuard(loadConfig({ ...base, TIKTOK_READ_ONLY: "1" } as NodeJS.ProcessEnv));
-    expect(readOnly.allows("read")).toBe(true);
-    expect(readOnly.allows("write")).toBe(false);
-
-    const noDestruct = new WriteGuard(
-      loadConfig({ ...base, TIKTOK_ALLOW_DESTRUCTIVE: "0" } as NodeJS.ProcessEnv),
-    );
-    expect(noDestruct.allows("write")).toBe(true);
-    expect(noDestruct.allows("destructive")).toBe(false);
   });
 });

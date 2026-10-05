@@ -2,9 +2,9 @@
   "manifest_version": "0.2",
   "name": "tiktok",
   "display_name": "TikTok",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "description": "TikTok MCP server and CLI for Claude Code and AI agents. 14 tools for your profile, video stats, top posts, publishing videos and photo carousels, drafts and post status.",
-  "long_description": "Connects Claude to your own TikTok account through TikTok's official Display and Content Posting APIs.\n\nTikTok issues no personal access tokens, so setup starts with an app you register at developers.tiktok.com. Run `npx -y @thenavidm/tiktok-mcp-cli auth` once to turn that app's client key and secret into a refresh token, then paste all three below.\n\nIt reads your real numbers: views, likes, comments and shares per post, and ranks your catalogue by a metric the TikTok app will not sort by. It publishes too, as a post or as a draft into your TikTok inbox.\n\nPublishing is public the moment moderation clears it, so post_video, post_photos and revoke_access refuse to run without an explicit confirmation.\n\nIt only ever reaches accounts you connect yourself. TikTok's official API has no endpoint for anybody else's profile, videos, comments, search or trends.",
+  "long_description": "Connects Claude to your own TikTok account through TikTok's official Display and Content Posting APIs.\n\nTikTok issues no personal access tokens, so setup starts with an app you register at developers.tiktok.com. Run `npx -y @thenavidm/tiktok-mcp-cli login` once to turn that app's client key and secret into a refresh token, then paste all three below.\n\nIt reads your real numbers: views, likes, comments and shares per post, and ranks your catalog by a metric the TikTok app will not sort by. It publishes too, as a post or as a draft into your TikTok inbox.\n\nPublishing is public the moment moderation clears it, so post_video, post_photos and revoke_access wait for your approval.\n\nIt only ever reaches accounts you connect yourself. TikTok's official API has no endpoint for anybody else's profile, videos, comments, search or trends.",
   "author": { "name": "Navid Moazzez", "url": "https://navid.me" },
   "repository": { "type": "git", "url": "https://github.com/thenavidm/tiktok-mcp-cli" },
   "homepage": "https://github.com/thenavidm/tiktok-mcp-cli",
@@ -66,6 +66,6 @@
   "compatibility": {
     "claude_desktop": ">=0.10.0",
     "platforms": ["darwin", "win32", "linux"],
-    "runtimes": { "node": ">=20" }
+    "runtimes": { "node": ">=22" }
   }
 }

@@ -1,113 +1,76 @@
-import { TikTokClient } from "./api/client.js";
-import { PUBLISH_SCOPES, READ_SCOPES } from "./api/client.js";
-import { loadConfig } from "./config.js";
-import { buildServer } from "./server.js";
-
 /**
- * `doctor` exists because an integration fails for about six reasons and all
- * of them look identical from inside an MCP client, which reports "the tool
- * errored" and nothing else.
+ * `tiktok-cli doctor`: test every credential and say what is unavailable.
  *
- * So this tests every credential, names which tools are unavailable and why,
- * and checks the things the server assumes but cannot guarantee: that the
- * refresh token still works, and that the account actually granted the scopes
- * the publishing tools need. Both of those are silent until the first call.
+ * Slipway runs these on every `doctor`, as 1.1 did, after its own checks of
+ * Node, the version, writes and the tool count.
  */
 
-type Line = { ok: boolean; label: string; detail?: string };
+import type { DoctorCheck } from "@thenavidm/slipway";
+import { PUBLISH_SCOPES, READ_SCOPES } from "./api/client.js";
+import type { ToolContext } from "./tools/kit.js";
 
-function render(lines: Line[]): string {
-  return lines.map((l) => `${l.ok ? "PASS" : "FAIL"}  ${l.label}${l.detail ? `\n      ${l.detail}` : ""}`).join("\n");
-}
+const LOGIN = "Run `tiktok-cli login` to get a refresh token, then set TIKTOK_REFRESH_TOKEN.";
 
-export async function runDoctor(): Promise<{ text: string; healthy: boolean }> {
-  const config = loadConfig();
-  const lines: Line[] = [];
-
-  lines.push({
-    ok: Number(process.versions.node.split(".")[0]) >= 20,
-    label: `Node ${process.versions.node}`,
-    detail: Number(process.versions.node.split(".")[0]) >= 20 ? undefined : "This server needs Node 20 or newer.",
-  });
+export async function doctor(ctx: ToolContext, options: { network: boolean }): Promise<DoctorCheck[]> {
+  const { config } = ctx;
+  const checks: DoctorCheck[] = [];
 
   const hasApp = Boolean(config.clientKey && config.clientSecret);
-  lines.push({
-    ok: hasApp,
-    label: "TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET",
-    detail: hasApp
+  checks.push(
+    hasApp
       ? config.clientKey.startsWith("sb")
-        ? "This is a SANDBOX client key. A sandbox app only authorises test users you add by hand, and cannot post publicly."
-        : undefined
-      : "Both come from your app on developers.tiktok.com, under Manage apps.",
-  });
-
-  lines.push({
-    ok: config.accounts.length > 0,
-    label: `${config.accounts.length} account(s) configured`,
-    detail:
-      config.accounts.length > 0
-        ? config.accounts.map((a) => a.name).join(", ")
-        : "Run `tiktok-mcp auth` to get a refresh token, then set TIKTOK_REFRESH_TOKEN.",
-  });
+        ? {
+            name: "TikTok app",
+            ok: false,
+            warn: true,
+            detail: "a sandbox client key, which authorizes only test users you add by hand and cannot post publicly",
+          }
+        : { name: "TikTok app", ok: true, detail: "client key and secret set" }
+      : {
+          name: "TikTok app",
+          ok: false,
+          detail: "TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET are not set",
+          fix: "Both come from your app on developers.tiktok.com, under Manage apps.",
+        },
+  );
+  checks.push(
+    config.accounts.length > 0
+      ? { name: "Accounts", ok: true, detail: config.accounts.map((account) => account.name).join(", ") }
+      : { name: "Accounts", ok: false, detail: "none configured", fix: LOGIN },
+  );
+  if (!hasApp || !options.network) return checks;
 
   /* Test every account rather than the first. One dead token must not hide
      five healthy ones, which is exactly what a first-account-only check does
      and why it is worth the extra requests here. */
   for (const account of config.accounts) {
-    if (!hasApp) break;
-    const client = new TikTokClient(config, account);
+    const client = ctx.client(account.name);
     try {
       const data = (await client.request("GET", "/user/info/", { fields: "open_id,display_name,username" })) as {
         user?: Record<string, unknown>;
       };
       const username = data.user?.username ?? data.user?.display_name ?? "(no username granted)";
-      lines.push({ ok: true, label: `${account.name}: connected as ${String(username)}` });
+      checks.push({ name: `${account.name}`, ok: true, detail: `connected as ${String(username)}` });
 
-      const granted = (client.grantedScope ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-      const missingRead = READ_SCOPES.filter((s) => !granted.includes(s));
-      const missingPublish = PUBLISH_SCOPES.filter((s) => !granted.includes(s));
-
+      const granted = (client.grantedScope ?? "").split(",").map((scope) => scope.trim()).filter(Boolean);
+      const missingRead = READ_SCOPES.filter((scope) => !granted.includes(scope));
+      const missingPublish = PUBLISH_SCOPES.filter((scope) => !granted.includes(scope));
       if (missingRead.length) {
-        lines.push({
-          ok: false,
-          label: `${account.name}: missing read scopes`,
-          detail: `${missingRead.join(", ")}. Re-run \`tiktok-mcp auth\` and approve them.`,
-        });
+        checks.push({ name: `${account.name} read scopes`, ok: false, detail: `missing ${missingRead.join(", ")}`, fix: "Run `tiktok-cli login` again and approve them." });
       }
-      lines.push({
-        ok: missingPublish.length === 0,
-        label:
-          missingPublish.length === 0
-            ? `${account.name}: publishing available`
-            : `${account.name}: publishing unavailable`,
-        detail:
-          missingPublish.length === 0
-            ? undefined
-            : `Missing ${missingPublish.join(", ")}. Add the Content Posting API product to your TikTok app, then re-run \`tiktok-mcp auth --publish\`. The draft tools still work without it.`,
-      });
+      checks.push(
+        missingPublish.length === 0
+          ? { name: `${account.name} publishing`, ok: true, detail: "available" }
+          : {
+              name: `${account.name} publishing`,
+              ok: false,
+              detail: `unavailable: missing ${missingPublish.join(", ")}; the draft tools still work without it`,
+              fix: "Add the Content Posting API product to your TikTok app, then run `tiktok-cli login --publish`.",
+            },
+      );
     } catch (error) {
-      lines.push({
-        ok: false,
-        label: `${account.name}: token rejected`,
-        detail: (error as Error).message,
-      });
+      checks.push({ name: `${account.name}`, ok: false, detail: `token rejected: ${(error as Error).message}`, fix: LOGIN });
     }
   }
-
-  const built = buildServer(config);
-  lines.push({
-    ok: true,
-    label: `${built.toolCount} tools registered`,
-    detail: config.readOnly
-      ? "TIKTOK_READ_ONLY=1 is set, so every write tool is hidden."
-      : config.allowDestructive
-        ? undefined
-        : "TIKTOK_ALLOW_DESTRUCTIVE=0 is set, so drafts work and publishing is hidden.",
-  });
-
-  if (config.auditLog) {
-    lines.push({ ok: true, label: `Audit log at ${config.auditLog}` });
-  }
-
-  return { text: render(lines), healthy: lines.every((l) => l.ok) };
+  return checks;
 }

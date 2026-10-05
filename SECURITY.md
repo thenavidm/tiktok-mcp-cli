@@ -18,7 +18,7 @@ With the credentials it holds, it can:
 
 It cannot reach any other TikTok account. TikTok's API has no endpoint for
 another user's profile, videos, comments or search, so a stolen token from this
-server exposes exactly one account: the one that authorised it.
+server exposes exactly one account: the one that authorized it.
 
 ## Where credentials live
 

@@ -3,7 +3,7 @@
  */
 
 import { USER_FIELDS } from "../format/videos.js";
-import { frame } from "../safety.js";
+import { frame } from "../format/frame.js";
 import { accountArg, confirmArg, defineTool, type AnyToolSpec } from "./kit.js";
 
 type RawUser = Record<string, unknown>;

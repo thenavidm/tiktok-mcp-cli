@@ -1,4 +1,4 @@
-<img src="https://cdn.navid.media/connectors/tiktok-icon.png" alt="TikTok" width="88">
+<img src="https://cdn.navid.me/connectors/tiktok-icon.png" alt="TikTok" width="88">
 
 # TikTok MCP Server & CLI
 
@@ -19,7 +19,7 @@ It publishes too: a video or a photo carousel, or a draft into your TikTok inbox
 
 Everything is scoped to accounts you connect yourself.
 
-Built and maintained by [Navid Moazzez](https://navid.me?utm_source=github&utm_medium=referral&utm_campaign=tiktok-mcp-cli&utm_content=readme).
+Built and maintained by [Navid Moazzez](https://navid.me?utm_source=github&utm_medium=referral&utm_campaign=tiktok-mcp-cli&utm_content=readme). Built on [Slipway](https://github.com/thenavidm/slipway), which turns one definition of each tool into the MCP server and the CLI.
 
 ```
 You:    Which of my TikToks beat my median view count this year, and what do they share?
@@ -65,7 +65,7 @@ Reading commands return real objects rather than prose, so `jq` and `--select`
 reach the fields directly. [Section 8](#8-output-and-exit-codes) has the exit
 codes a script branches on.
 
-### MCP server, for AI agents
+### MCP server, for your AI app
 
 `tiktok-mcp` is what Claude Code, Claude Desktop, Cursor and the rest launch.
 You never run it by hand:
@@ -81,6 +81,9 @@ claude mcp add tiktok \
 Then just ask: _"rank my last 200 posts by shares and tell me what the top ten
 have in common."_
 
+Each publish waits for your approval in the client, as
+[section 10](#10-writing-safely-) explains.
+
 Every other client is in [section 4](#4-connect-your-client-).
 
 ### Which one
@@ -94,6 +97,23 @@ Every other client is in [section 4](#4-connect-your-client-).
 They are the same program reading the same array of tool definitions, so
 anything one can do, the other can, and a tool added tomorrow is a command
 tomorrow.
+
+## Features
+
+Every tool is both a command and an MCP tool, with the same name. The command
+is the tool name with dashes.
+
+| Capability | CLI command | MCP tool |
+|---|---|---|
+| Your accounts and profile | `tiktok-cli list-accounts` / `get-profile` | `list_accounts` / `get_profile` |
+| Your videos and what worked | `tiktok-cli list-videos` / `get-videos` / `top-videos` / `stats-summary` | `list_videos` / `get_videos` / `top_videos` / `stats_summary` |
+| Publish | `tiktok-cli get-creator-info` / `post-video` / `post-photos` / `get-post-status` | `get_creator_info` / `post_video` / `post_photos` / `get_post_status` |
+| Send to drafts | `tiktok-cli send-video-to-drafts` / `send-photos-to-drafts` | `send_video_to_drafts` / `send_photos_to_drafts` |
+| Hand the token back | `tiktok-cli revoke-access` | `revoke_access` |
+| Sign in once | `tiktok-cli login` | not a tool |
+| Check your setup | `tiktok-cli doctor` | not a tool |
+
+All 14 are in [section 7](#7-tools-).
 
 ## Contents
 
@@ -109,7 +129,7 @@ tomorrow.
 | 8 | [Output and exit codes](#8-output-and-exit-codes) | What scripts branch on |
 | 9 | [Environment variables](#9-environment-variables) | Credentials, safety, tuning |
 | 10 | [Writing safely](#10-writing-safely-) | What is guarded and what is not |
-| 11 | [Notes and gotchas](#11-notes-and-gotchas-) | The platform's real behaviour |
+| 11 | [Notes and gotchas](#11-notes-and-gotchas-) | The platform's real behavior |
 | 12 | [Troubleshooting](#12-troubleshooting-) | Symptom to cause |
 | 13 | [FAQ](#13-faq-) | Including what an MCP server is |
 
@@ -125,11 +145,11 @@ tomorrow.
 - Did the video I posted twenty minutes ago clear moderation yet?
 - My follower count and total likes, then work out my average views per follower.
 
-The thing you cannot do anywhere else: **rank your own catalogue by a metric TikTok's app will not sort by.** The app shows you a grid ordered by date. Asking "which posts actually travelled, by shares, across two hundred videos" has no answer inside TikTok, and it is one call here.
+The thing you cannot do anywhere else: **rank your own catalog by a metric TikTok's app will not sort by.** The app shows you a grid ordered by date. Asking "which posts actually travelled, by shares, across two hundred videos" has no answer inside TikTok, and it is one call here.
 
 ## 2. Quick install ⚡
 
-Node 20 or newer. Nothing else.
+Node 22 or newer. Nothing else.
 
     npx -y @thenavidm/tiktok-mcp-cli --version
 
@@ -163,9 +183,9 @@ The steps below are the short version. [INSTALL.md](INSTALL.md) is the long one:
 
 | You need | Check with | If missing |
 |---|---|---|
-| Node 20 or newer | `node -v` | [nodejs.org](https://nodejs.org) |
+| Node 22 or newer | `node -v` | [nodejs.org](https://nodejs.org) |
 | A TikTok developer account | [developers.tiktok.com](https://developers.tiktok.com) | Sign up with your email, it is free |
-| The TikTok account you want to connect | | Any account, personal or business |
+| The TikTok account you want to connect | you sign in with it | Any account, personal or business |
 
 ### Step 1: Create the app
 
@@ -351,12 +371,12 @@ The two failures that actually happen:
 Both surfaces are the same program with the same 14 tools. The
 difference is when the model pays for them. Measured in Claude Code:
 
-| | MCP server | CLI |
+| Cost | MCP server | CLI |
 |---|---|---|
-| Every message, with every tool loaded | 6,000 tokens | nothing |
+| Every message, with every tool loaded | 5,400 tokens | nothing |
 | Every message, Claude Code's default | 730 tokens | nothing |
-| When TikTok comes up | nothing more, or the tools it picks | 3,100 tokens for `SKILL.md`, once |
-| 20 messages with TikTok in 1, every tool loaded | 119,000 tokens | 3,100 tokens |
+| When TikTok comes up | nothing more, or the tools it picks | 3,180 tokens for `SKILL.md`, once |
+| 20 messages with TikTok in 1, every tool loaded | 108,000 tokens | 3,180 tokens |
 
 Claude Code's [tool search](https://code.claude.com/docs/en/mcp#scale-with-mcp-tool-search)
 is on by default: it sends only the tool names and the server instructions,
@@ -369,19 +389,30 @@ Where the tokens go, with every tool loaded:
 
 | Part of the tool list | Share |
 |---|---|
-| JSON Schema structure: types, required lists, nesting | 51% |
-| Argument descriptions | 27% |
-| Tool descriptions | 22% |
+| Structure: names, types, required lists, nesting, annotations | 48% |
+| Argument descriptions | 28% |
+| Tool descriptions | 24% |
 
 To spend less, turn the server off when you are not using it, which in Claude
 Code is the `/mcp` panel. `TIKTOK_READ_ONLY=1` takes the 5 write tools off the list, leaving 9.
 Or install the CLI and add the server on the days it earns its place.
 
-Measured on 2026-09-27 with Claude Code 2.1.257 on Claude Opus 5: one
+Measured on 2026-10-05 with Claude Code 2.1.286 on Claude Opus 5.5: one
 short prompt with and without the server connected, once with
 `ENABLE_TOOL_SEARCH=false` and once with the default, the difference read
 from the API's own usage figures. `SKILL.md` was measured the same way. Other
 apps and models count tokens a little differently.
+
+Against 1.1.0, measured the same day: every tool loaded costs 5,409 tokens
+instead of 5,970, tool search the same, and `SKILL.md` 75 more, because it now
+says how approval works over MCP and lists every exit code. In Codex 0.159.3 on
+gpt-6.1-sol, the same task, "find the command that saves a video to the
+creator's TikTok drafts instead of publishing it and the flags it requires",
+read a median of 47,503 input tokens on 2.0.0 against 47,557 on 1.1.0 over MCP,
+and 83,105 against 83,043 over the CLI, five runs each. The CLI's 62 more come
+from its general help, which Codex reads first and carries through the task:
+it now lists `which`, `install` and the exit codes, which 1.1's did not, and is
+412 tokens against 312.
 
 ## 7. Tools 🛠️
 
@@ -422,7 +453,7 @@ Every command prints human-readable text by default and JSON when asked.
 |---|---|
 | `--json` | JSON on stdout |
 | `--compact` | the same JSON on one line |
-| `--agent` | machine mode: `--json --compact --no-input --no-color --yes` in one flag |
+| `--agent` | compact JSON, no prompts, and never confirms a write |
 | `--select <a,b.c>` | keep only these fields; dotted paths descend and arrays are traversed element-wise |
 | `--help` | the arguments, types and defaults, derived from the schema |
 
@@ -435,7 +466,8 @@ should retry:
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 2 | Usage error: wrong or missing arguments, or a write refused for want of `--confirm` |
+| 1 | Unexpected error |
+| 2 | Usage error: wrong or missing arguments, an unknown command, a write hidden by a safety setting, or a write refused for want of `--confirm` |
 | 3 | Not found |
 | 4 | Authentication rejected, usually an expired refresh token |
 | 5 | API error upstream |
@@ -446,7 +478,7 @@ should retry:
 if ! tiktok-cli post-video --video-url "$URL" --privacy-level SELF_ONLY --confirm; then
   case $? in
     2)  echo "bad arguments or no confirmation, not retrying" >&2; exit 1 ;;
-    4)  echo "token expired, run tiktok-cli auth" >&2; exit 1 ;;
+    4)  echo "token expired, run tiktok-cli login" >&2; exit 1 ;;
     7)  echo "rate limited, backing off" >&2; sleep 60 ;;
     10) echo "nothing configured" >&2; exit 1 ;;
     *)  echo "failed, will retry" >&2 ;;
@@ -466,7 +498,7 @@ the two surfaces are provably the same.
 |---|---|
 | `TIKTOK_CLIENT_KEY` | From the Credentials section of your app at developers.tiktok.com |
 | `TIKTOK_CLIENT_SECRET` | From the same place |
-| `TIKTOK_REFRESH_TOKEN` | What `tiktok-cli auth` prints. One account |
+| `TIKTOK_REFRESH_TOKEN` | What `tiktok-cli login` prints, which 1.1 called `auth`; both names work. One account |
 | `TIKTOK_ACCOUNTS` | Several accounts, as `name:token,name:token` |
 
 **Safety**
@@ -475,7 +507,8 @@ the two surfaces are provably the same.
 |---|---|
 | `TIKTOK_READ_ONLY=1` | Removes all five write tools from the list entirely |
 | `TIKTOK_ALLOW_DESTRUCTIVE=0` | Keeps the drafts tools, removes publishing and revoking |
-| `TIKTOK_AUDIT_LOG=<path>` | One JSON line per attempted write, allowed and blocked alike |
+| `TIKTOK_AUDIT_LOG=<path>` | One JSON line per attempted write, allowed and blocked alike, and who approved it |
+| `TIKTOK_CONFIRM=model` | Lets `confirm: true` alone approve over MCP, for an agent with no person to ask |
 
 **Tuning**
 
@@ -484,16 +517,22 @@ the two surfaces are provably the same.
 | `TIKTOK_HTTP_PORT` | `8000` | Port for `--http`. `--port` overrides it |
 | `TIKTOK_HTTP_HOST` | `127.0.0.1` | Interface for `--http` to bind |
 | `TIKTOK_HTTP_TOKEN` | none | Bearer token required on every HTTP request. Mandatory on any host but `127.0.0.1` |
+| `TIKTOK_HTTP_ALLOWED_ORIGINS` | none | Comma-separated browser origins allowed to connect; a page from any other site is refused |
+| `TIKTOK_SURFACE` | `full` | `search` lists three tools that find, describe and run the rest |
+| `TIKTOK_TOOL_TIMEOUT_MS` | none | Give up on any tool after this long |
+| `TIKTOK_DEBUG` | `0` | `1` prints debug lines on stderr |
 
 ## 10. Writing safely 🛟
 
 Writes work by default. Publishing is the point of the tool.
 
-The three actions that cannot be undone from a chat window take `confirm: true`, or `--confirm` in the shell: `post_video`, `post_photos` and `revoke_access`. Drafts do not, because they land in your own inbox and go nowhere until you finish them. Confirming everything would train the reflex that makes the confirmation on a real publish worthless.
+The three actions that cannot be undone from a chat window wait for your approval: `post_video`, `post_photos` and `revoke_access`. Drafts do not, because they land in your own inbox and go nowhere until you finish them. Approving everything would train the reflex that makes the approval on a real publish worthless.
 
-The three switches in [section 9](#9-environment-variables) are the harder stops. `TIKTOK_READ_ONLY=1` takes the list from 14 tools to 9 by removing every write rather than refusing it, because a model cannot call a tool it cannot see. `TIKTOK_ALLOW_DESTRUCTIVE=0` leaves 11: the drafts tools stay, publishing and revoking go. `TIKTOK_AUDIT_LOG` records every attempted write, allowed and blocked alike.
+Over MCP a person approves each of the three where the client can ask: Claude Code (2.1.246 and later) shows its own prompt, and a client that can show forms asks with an approval form whose one box starts unticked. Each approval is signed, bound to that exact call and works once. Where a client can do neither, the model's `confirm: true` counts, and it should pass it only when you asked for that exact post. `TIKTOK_CONFIRM=model` makes `confirm: true` enough everywhere, for an agent with no person to ask. In a terminal it is `--confirm`, which `--agent` never adds.
 
-Captions and bios reach the model fenced and labelled as somebody else's words. That framing helps and it is not a guarantee. For an agent working unattended, `TIKTOK_READ_ONLY=1` is the real defence.
+The three switches in [section 9](#9-environment-variables) are the harder stops. `TIKTOK_READ_ONLY=1` takes the list from 14 tools to 9 by removing every write rather than refusing it, because a model cannot call a tool it cannot see. `TIKTOK_ALLOW_DESTRUCTIVE=0` leaves 11: the drafts tools stay, publishing and revoking go. `TIKTOK_AUDIT_LOG` records every attempted write, allowed and blocked alike, and who approved it.
+
+Captions and bios reach the model fenced and labelled as somebody else's words. That framing helps and it is not a guarantee. For an agent working unattended, `TIKTOK_READ_ONLY=1` is the real defense.
 
 ## 11. Notes and gotchas ⚠️
 
@@ -526,6 +565,10 @@ Run `doctor` first. It checks every account and names what is unavailable.
 | `unaudited_client_can_only_post_to_private_accounts` | Expected on a sandbox or unaudited app. Post `SELF_ONLY`, or apply for the audit |
 | Only nine tools appear | `TIKTOK_READ_ONLY=1` is set |
 | Nothing appears in Claude Desktop | It does not inherit your PATH. Use the absolute `npx` path and fully quit the app |
+| "will not run without --confirm" | Working as intended: publishing cannot be undone. See [section 10](#10-writing-safely-) |
+| `claude -p` will not publish | Headless Claude Code refuses tools that need a person. Give that agent `TIKTOK_CONFIRM=model` |
+| No approval form appears | The client cannot show forms, so the model's `confirm: true` counts, and only for a post you asked for |
+| A piped request gets no answer | Stdin closed before the answer. The MCP stdio binding stops a server when its input ends; keep stdin open until you read the answer, or use the CLI |
 
 ## 13. FAQ ❓
 
@@ -567,7 +610,7 @@ You need to be comfortable pasting commands into a terminal and filling in a web
 <details>
 <summary><b>Can it see other people's TikToks?</b></summary>
 
-It cannot. TikTok's official API only reaches the account that authorised your app. There is no endpoint for another profile, for search, for hashtags or for trends, so competitor research is not something this can do at any price.
+It cannot. TikTok's official API only reaches the account that authorized your app. There is no endpoint for another profile, for search, for hashtags or for trends, so competitor research is not something this can do at any price.
 
 </details>
 
@@ -581,7 +624,7 @@ Your credentials stay in your own client's config and the server runs on your ma
 <details>
 <summary><b>Can it post something by accident?</b></summary>
 
-It is unlikely to. Publishing requires `confirm: true`, which the model has to set deliberately after reading a description saying why. Setting `TIKTOK_READ_ONLY=1` removes every write tool, and `TIKTOK_ALLOW_DESTRUCTIVE=0` keeps drafts while removing publishing.
+It is unlikely to. Each publish waits for your approval: Claude Code shows its own prompt, a client that can show forms asks with one, and elsewhere the model has to pass `confirm: true` deliberately after reading a description saying why. Setting `TIKTOK_READ_ONLY=1` removes every write tool, and `TIKTOK_ALLOW_DESTRUCTIVE=0` keeps drafts while removing publishing.
 
 </details>
 
@@ -631,7 +674,7 @@ Call `revoke_access`, or open the TikTok app and remove the app under Settings, 
 
 Run into a problem or have a question? [Open an issue](https://github.com/thenavidm/tiktok-mcp-cli/issues) and I will help.
 
-## About the author 👋
+## About the author
 
 Navid Moazzez is a leading AI business strategist, and the host of the AI Creator Summit, watched by 100,000+ creators. He helps creators and founders master AI and build their own AI Operating System (AI OS) to automate their business and life. He creates useful free tools, MCP servers and CLIs that creators and founders can use in their own workflows.
 
@@ -649,9 +692,10 @@ If this is useful, star the repo and come say hi on [X](https://x.com/thenavidm)
 
 ## Dependencies
 
-| Library | Licence | What it does |
+| Library | License | What it does |
 |---|---|---|
-| [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) | MIT | The MCP protocol, stdio and streamable HTTP transports |
+| [Slipway](https://github.com/thenavidm/slipway) | Apache-2.0 | The MCP server and the CLI from one definition of each tool, with the write guard |
+| [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk) | Apache-2.0 | The MCP protocol, stdio and streamable HTTP transports, through Slipway |
 | [zod](https://github.com/colinhacks/zod) | MIT | Tool input schemas, and the validation behind them |
 
 ## License

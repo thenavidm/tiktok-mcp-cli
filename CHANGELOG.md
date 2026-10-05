@@ -2,10 +2,30 @@
 
 | Component | Version |
 |---|---|
-| `@modelcontextprotocol/sdk` | ^1.30.0 |
+| Slipway | ^0.1.10 |
+| MCP TypeScript SDK, through Slipway | 2.3.0 |
 | TikTok Display API | v2 |
 | TikTok Content Posting API | v2 |
-| Node | >= 20 |
+| Node | >= 22 |
+
+## 2.0.0, 2026-10-05
+
+Built on [Slipway](https://github.com/thenavidm/slipway) 0.1.10. The 14 tools keep their names and arguments, and every difference below was measured against 1.1.0, the last version on npm, before release.
+
+- **A person approves each publish over MCP.** `post_video`, `post_photos` and `revoke_access` cannot be undone; Claude Code (2.1.246 and later) shows its own prompt for each, and a client that can show forms asks with an approval form whose one box starts unticked. Approvals are signed, bound to the exact call and work once. Where a client can do neither, the model's `confirm: true` still counts, and `TIKTOK_CONFIRM=model` makes it enough everywhere. Drafts still need nothing, and the audit log records who approved each write.
+- **`TIKTOK_ALLOW_DESTRUCTIVE=0` still takes publishing and revoking off the list**, on both surfaces, and drafts keep working. A call to one of them anyway is refused with the setting to unset.
+- **A smaller tool list.** 5,409 tokens in Claude Code with every tool loaded, down from 5,970: the per-tool `$schema` line, an `execution` field and `additionalProperties: false` are gone. The last one advertised strict input while unknown keys were dropped anyway; the schema now says what happens.
+- **TikTok's error codes pick the exit code.** A missing scope or a rejected token exits 4, TikTok's posting caps 7, a privacy level the account cannot use or an unverified media domain 2, an unknown publish id 3, and a refresh token TikTok no longer honors 4. An unknown command and a write hidden by a safety setting exit 2 instead of 1, and `doctor` with nothing configured 10 instead of 1. 1 now means an unexpected error. Errors keep TikTok's code and its log id, which TikTok's support asks for, in `details`.
+- **`which <words>` finds a command**, and `agent-context` describes every command, flag and setting as JSON. In Codex over MCP, finding the tool that saves a video to drafts took 47,503 input tokens instead of 47,557 (median of five).
+- **`login`**, which 1.1 called `auth`. Both names work, and the token still goes alone to stdout.
+- **`install <client>`** adds the server to Claude Code, Codex, Claude Desktop, Cursor, VS Code or Gemini CLI in each one's own format.
+- **Less work to start.** The entry turns on Node's compile cache, and the server spends 145 ms of CPU before its first answer where 1.1.0 spent 181 (median of 21 runs, taking turns on one busy Mac). npx installs 4 dependencies instead of 94.
+- **Releases reach npm again.** The publish workflow ran only when a GitHub release was created, so 1.1.1 was tagged and never published; 2.0.0 publishes on the tag, attaches the desktop extension to the release, and carries 1.1.1's npx fix. The CI handshake now speaks JSON-RPC itself, since the old MCP SDK is no longer a dependency.
+- **Docs fixes.** The README has a Features table, the icon loads from cdn.navid.me, and THIRD_PARTY_NOTICES.md lists the production dependencies' licenses.
+
+### Upgrading
+
+Node 22 or newer; 1.1 ran on 20. Scripts keep working for success, a refused publish and missing setup; one that read exit 1 as an unknown command or a hidden write should read 2. Over MCP, expect an approval prompt or form for each publish; a headless agent that should publish with `confirm: true` alone needs `TIKTOK_CONFIRM=model`. A script that pipes JSON-RPC into the server must keep stdin open until it reads the answer: the server now stops when its input ends, as the MCP stdio binding asks. `--http` refuses a page from another site unless `TIKTOK_HTTP_ALLOWED_ORIGINS` lists it. Some terminal screens grew: the general help by 100 tokens, for `which`, `install`, the flags and the exit codes it now lists, which in Codex makes the CLI task 62 tokens longer (83,105 against 83,043, median of five); the command list by 24, for the lines that point to `which` and `--help`; and the refusal to publish without `--confirm` by 34, since it now says what would run and how to approve it.
 
 ## 1.1.1, 2026-10-04
 

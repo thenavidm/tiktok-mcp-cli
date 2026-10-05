@@ -37,16 +37,16 @@ Start in Sandbox.
 | Aspect | Sandbox | Production |
 |---|---|---|
 | App review | not needed | required before anyone can use it |
-| Who can authorise | TikTok accounts you add to the sandbox | anyone, once approved |
+| Who can authorize | TikTok accounts you add to the sandbox | anyone, once approved |
 | Public posting | no | yes, after the Content Posting audit |
 | URL verification | only for the Content Posting API | Terms, Privacy and Web/Desktop URLs too |
 
 If you are the only person using this, a sandbox app does everything except
-post publicly. Reading your own stats, ranking your catalogue and pushing
+post publicly. Reading your own stats, ranking your catalog and pushing
 drafts to your inbox all work.
 
 A sandbox client key begins with `sb`. `doctor` points this out, because a
-sandbox key that fails to authorise a colleague's account looks like a broken
+sandbox key that fails to authorize a colleague's account looks like a broken
 credential rather than the restriction it is.
 
 ## The redirect URI

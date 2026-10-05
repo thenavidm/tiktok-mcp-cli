@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { buildServer } from "../src/server.js";
-import { loadConfig } from "../src/config.js";
+import { connect } from "@thenavidm/slipway/testing";
+import { app } from "../src/app.js";
 import { ALL_TOOLS } from "../src/tools/index.js";
-import { annotationsFor } from "../src/safety.js";
 
 const BASE = {
   TIKTOK_CLIENT_KEY: "key",
   TIKTOK_CLIENT_SECRET: "secret",
   TIKTOK_REFRESH_TOKEN: "refresh",
-} as NodeJS.ProcessEnv;
+};
+
+/** What a client receives over MCP in this environment. */
+async function listed(env: Record<string, string> = BASE) {
+  const mcp = await connect(app, { env });
+  const tools = await mcp.listTools();
+  await mcp.close();
+  return tools;
+}
 
 describe("tool registration", () => {
   it("registers every tool with a description and a title", () => {
@@ -26,16 +33,18 @@ describe("tool registration", () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("puts an account argument on everything that reaches TikTok", () => {
-    for (const tool of ALL_TOOLS) {
+  it("puts an account argument on everything that reaches TikTok", async () => {
+    for (const tool of await listed()) {
       if (tool.name === "list_accounts") continue;
-      expect(Object.keys(tool.schema), `${tool.name}`).toContain("account");
+      expect(Object.keys((tool.inputSchema as { properties?: object }).properties ?? {}), tool.name).toContain("account");
     }
   });
 
-  it("requires confirm on exactly the irreversible tools", () => {
-    const needConfirm = ALL_TOOLS.filter((t) => Object.keys(t.schema).includes("confirm")).map((t) => t.name);
-    expect(needConfirm.sort()).toEqual(["post_photos", "post_video", "revoke_access"]);
+  it("asks for approval on exactly the irreversible tools", async () => {
+    const confirming = (await listed())
+      .filter((tool) => "confirm" in ((tool.inputSchema as { properties?: object }).properties ?? {}))
+      .map((tool) => tool.name);
+    expect(confirming.sort()).toEqual(["post_photos", "post_video", "revoke_access"]);
   });
 
   it("does not guard the reversible writes", () => {
@@ -45,44 +54,42 @@ describe("tool registration", () => {
     for (const name of ["send_video_to_drafts", "send_photos_to_drafts"]) {
       const tool = ALL_TOOLS.find((t) => t.name === name)!;
       expect(tool.risk).toBe("write");
-      expect(Object.keys(tool.schema)).not.toContain("confirm");
+      expect(tool.requireConfirm).toBe(false);
     }
   });
 });
 
 describe("annotations", () => {
-  it("marks reads read-only and irreversible writes destructive", () => {
-    expect(annotationsFor("read")).toMatchObject({ readOnlyHint: true, destructiveHint: false });
-    expect(annotationsFor("write")).toMatchObject({ readOnlyHint: false, destructiveHint: false });
-    expect(annotationsFor("destructive")).toMatchObject({ readOnlyHint: false, destructiveHint: true });
-  });
-
-  it("marks every tool as reaching the network", () => {
-    for (const risk of ["read", "write", "destructive"] as const) {
-      expect(annotationsFor(risk).openWorldHint).toBe(true);
+  it("marks reads read-only and irreversible writes destructive, and everything as reaching the network", async () => {
+    const tools = await listed();
+    for (const tool of tools) {
+      const risk = ALL_TOOLS.find((t) => t.name === tool.name)!.risk;
+      expect(tool.annotations?.readOnlyHint, tool.name).toBe(risk === "read");
+      expect(tool.annotations?.destructiveHint, tool.name).toBe(risk === "destructive");
+      expect(tool.annotations?.openWorldHint, tool.name).toBe(true);
     }
   });
 });
 
 describe("read-only and destructive modes", () => {
-  it("registers all 14 tools by default", () => {
-    expect(buildServer(loadConfig(BASE)).toolCount).toBe(14);
+  it("registers all 14 tools by default", async () => {
+    expect((await listed()).length).toBe(14);
   });
 
-  it("removes write tools entirely under TIKTOK_READ_ONLY", () => {
-    const built = buildServer(loadConfig({ ...BASE, TIKTOK_READ_ONLY: "1" }));
+  it("removes write tools entirely under TIKTOK_READ_ONLY", async () => {
+    const names = (await listed({ ...BASE, TIKTOK_READ_ONLY: "1" })).map((tool) => tool.name);
     /* Removed, not refused: a model cannot call a tool it cannot see, and it
        cannot argue with a refusal it never receives. */
     for (const name of ["post_video", "post_photos", "send_video_to_drafts", "revoke_access"]) {
-      expect(built.toolNames).not.toContain(name);
+      expect(names).not.toContain(name);
     }
-    expect(built.toolCount).toBe(9);
+    expect(names.length).toBe(9);
   });
 
-  it("keeps drafts and removes publishing under TIKTOK_ALLOW_DESTRUCTIVE=0", () => {
-    const built = buildServer(loadConfig({ ...BASE, TIKTOK_ALLOW_DESTRUCTIVE: "0" }));
-    expect(built.toolNames).toContain("send_video_to_drafts");
-    expect(built.toolNames).not.toContain("post_video");
-    expect(built.toolCount).toBe(11);
+  it("keeps drafts and removes publishing under TIKTOK_ALLOW_DESTRUCTIVE=0", async () => {
+    const names = (await listed({ ...BASE, TIKTOK_ALLOW_DESTRUCTIVE: "0" })).map((tool) => tool.name);
+    expect(names).toContain("send_video_to_drafts");
+    expect(names).not.toContain("post_video");
+    expect(names.length).toBe(11);
   });
 });

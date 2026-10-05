@@ -25,21 +25,22 @@ Do not re-derive these.
 
 | Decision | Settled as |
 |---|---|
-| Language | TypeScript, Node >= 20, ESM |
+| Language | TypeScript, Node >= 22, ESM |
 | Package | `@thenavidm/tiktok-mcp-cli` on npm |
-| Transport | stdio, and streamable HTTP behind `--http` |
-| Writes | on by default, `confirm` on the irreversible three only |
+| Framework | [Slipway](https://github.com/thenavidm/slipway): one definition of each tool serves MCP over stdio and `--http`, and the CLI |
+| Writes | on by default, approval on the irreversible three only |
 
 ## Things not to break
 
-**Read-only mode removes tools, it does not refuse them.** `WriteGuard.allows`
-filters the list at registration in `server.ts`. A model cannot call a tool it
-cannot see, and cannot argue with a refusal it never receives. Making this a
-runtime error would undo the whole point.
+**Read-only mode removes tools, it does not refuse them, and so does
+`TIKTOK_ALLOW_DESTRUCTIVE=0` for the irreversible three.** Slipway leaves them out
+of both surfaces (`defaults: { destructiveOff: "hide" }` in `src/app.ts`). A
+model cannot call a tool it cannot see, and cannot argue with a refusal it never
+receives. Making this a runtime error would undo the whole point.
 
-**Do not add `confirm` to the drafts tools.** They land in the creator's own
-inbox and publish nothing. Confirming everything trains the reflex that makes
-the confirmation on `post_video` worthless.
+**Do not make the drafts tools need approval.** They land in the creator's own
+inbox and publish nothing. Approving everything trains the reflex that makes
+the approval on `post_video` worthless.
 
 **The desktop PKCE challenge is hex, not base64url.** `src/auth.ts` uses
 `sha256(verifier).digest("hex")`. TikTok's web flow and RFC 7636 both use
@@ -50,26 +51,27 @@ call TikTok rejects with a generic parameter error.
 two units. `format/videos.ts` is the only place that converts either.
 
 **Error mapping is the product.** `api/errors.ts` turns TikTok's codes into a
-sentence naming the fix. A new code should get an entry there rather than being
-passed through raw.
+sentence naming the fix, and `tools/kit.ts` maps each code to its exit code. A
+new code should get an entry in both rather than being passed through raw.
 
 ## Where things are
 
 | Path | What is in it |
 |---|---|
 | `src/api/` | HTTP client, token refresh, error mapping |
-| `src/tools/` | One module per group, plus `kit.ts` which registers them |
-| `src/format/` | Shaping payloads for a model |
-| `src/cli.ts` | The CLI adapter: flags derived from the same Zod schemas |
-| `src/safety.ts` | Guard, annotations, injection framing |
-| `src/auth.ts` | The loopback OAuth flow |
+| `src/app.ts` | The Slipway app: tools, settings, login, doctor. Slipway owns MCP, the CLI, `--http`, the guard, approvals, annotations and the audit log |
+| `src/tools/` | One module per group, plus `kit.ts` which adapts them to Slipway and maps TikTok's codes to exit codes |
+| `src/format/` | Shaping payloads for a model, and `frame.ts`, which fences text other people wrote |
+| `src/auth.ts` | The loopback OAuth flow, behind `login` and `auth` in `src/login.ts` |
+| `src/doctor.ts` | The app key and every account's token and scopes |
 | `INSTALL.md` | Long-form auth walkthrough |
 
 ## Adding a tool
 
 Define it with `defineTool`, add it to its module's exported array, and pick a
-`risk`. `read` and `write` need nothing else; `destructive` must also take
-`confirmArg` and provide a `summary` for the audit log.
+`risk`. `read` and `write` need nothing else; a `destructive` tool should
+provide a `summary` for the audit log and the approval, and Slipway adds
+`confirm` itself.
 
 Then update the tool count in `package.json`, the README and the contents
 table, because three places carry it and they drift. Every count in a doc is

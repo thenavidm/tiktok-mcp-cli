@@ -1,5 +1,6 @@
 import type { Account, Config } from "../config.js";
 import { TikTokError, unwrap } from "./errors.js";
+import { AuthError, NotConfiguredError } from "@thenavidm/slipway";
 
 export const TIKTOK_API = "https://open.tiktokapis.com/v2";
 export const TOKEN_URL = `${TIKTOK_API}/oauth/token/`;
@@ -49,10 +50,8 @@ export class TikTokClient {
   private async refresh(): Promise<Tokens> {
     const { clientKey, clientSecret } = this.config;
     if (!clientKey || !clientSecret) {
-      throw new TikTokError(
+      throw new NotConfiguredError(
         "TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET are not set. Both come from your app on the TikTok for Developers site.",
-        undefined,
-        0,
       );
     }
 
@@ -74,11 +73,10 @@ export class TikTokClient {
        cannot go through unwrap(). */
     if (!res.ok || typeof body.access_token !== "string") {
       const detail = String(body.error_description || body.error || `HTTP ${res.status}`);
-      throw new TikTokError(
-        `Could not refresh the TikTok access token: ${detail}. Refresh tokens last 365 days; run \`tiktok-mcp auth\` to mint a new one.`,
-        typeof body.error === "string" ? body.error : undefined,
-        res.status,
-      );
+      const message = `Could not refresh the TikTok access token: ${detail}. Refresh tokens last 365 days; run \`tiktok-cli login\` to mint a new one.`;
+      // TikTok failing is TikTok's; anything else here is the credential, exit 4, as in 1.1.
+      if (res.status >= 500) throw new TikTokError(message, typeof body.error === "string" ? body.error : undefined, res.status);
+      throw new AuthError(message, { status: res.status, ...(typeof body.error === "string" ? { details: { tiktok_code: body.error } } : {}) });
     }
 
     const expiresIn = Number(body.expires_in ?? 86400);
