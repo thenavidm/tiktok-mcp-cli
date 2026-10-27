@@ -89,8 +89,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 /**
  * Pick the account a call targets.
  *
- * Exact match beats prefix match deliberately. A label like "Navid Media"
- * starts with "navid", so a pure prefix search would send an unnamed post to
+ * Exact match beats prefix match deliberately. A label like "Acme Media"
+ * starts with "acme", so a pure prefix search would send an unnamed post to
  * whichever account happened to sort first, which is the worst possible
  * failure mode for a publishing tool.
  */
