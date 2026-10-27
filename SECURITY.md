@@ -22,14 +22,28 @@ server exposes exactly one account: the one that authorized it.
 
 ## Where credentials live
 
-Nowhere on disk. The server reads `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`
-and the refresh tokens from its environment, and holds the short-lived access
-token in memory only.
+The server reads `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` and the refresh
+tokens from its environment, so your MCP client's config file, or your shell's,
+is where the secret starts. Treat it the way you would an SSH key.
 
-That means your MCP client's config file is where the secret actually sits.
-Treat it the way you would an SSH key.
+**The token store.** TikTok can answer a refresh with a new refresh token and
+retire the one it was sent. Every CLI command is a process of its own, so a new
+token kept only in memory would be gone by the next command, which would start
+again from the retired one in your config and be refused. Each account's latest
+refresh token, access token and expiry are therefore written to `tokens.json`
+in `TIKTOK_DATA_DIR` (by default this app's Slipway data folder,
+`~/Library/Application Support/slipway/tiktok` on macOS) right after every
+refresh. The file is plain JSON, readable by its owner only (0600) in a folder
+only its owner can enter (0700), and written to a temporary file and renamed
+into place. Each entry is keyed by a SHA-256 hash of the token in your config,
+so a new `login` starts fresh and replaces it. `revoke_access` deletes the
+account's entry. `doctor` says where the file is and warns if its mode is wider
+than 0600. Nothing prints a token.
 
-The one file this writes is the audit log, and only when `TIKTOK_AUDIT_LOG` is
+It is a live credential on disk, as the config file it came from is. Anyone
+who can read files as you can read both.
+
+The other file this writes is the audit log, and only when `TIKTOK_AUDIT_LOG` is
 set. It records tool names and one-line summaries, never a token.
 
 The one file it reads, besides its own code, is a video you name with
@@ -39,9 +53,10 @@ read, so the path is worth a glance in the approval prompt for `post_video`.
 
 ## Deliberately not implemented
 
-**No token file.** Persisting refreshed tokens to disk would leave a
-long-lived credential lying in a predictable path. Holding them in memory means
-a restart costs one refresh call and a stolen laptop costs nothing extra.
+**No token file until 2.1.1.** Keeping refreshed tokens in memory only looked
+safer, and broke the CLI: TikTok retired the refresh token in the config after
+the first refresh, and the next command, a new process, was refused. The token
+store above replaced it.
 
 **No tool reads or edits the audit log.** A log an agent can rewrite is not a
 log.

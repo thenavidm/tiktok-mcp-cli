@@ -359,7 +359,7 @@ Then pass `account: "brand"` on any tool. Run `auth` once per account to get eac
 
     npx -y @thenavidm/tiktok-mcp-cli@latest doctor
 
-It tests every configured account, names which scopes were granted, and says which tools are unavailable and why.
+It tests every configured account, names which scopes were granted, says which tools are unavailable and why, and says where the token store is and whether only you can read it.
 
 The two failures that actually happen:
 
@@ -528,6 +528,7 @@ the two surfaces are provably the same.
 | `TIKTOK_SURFACE` | `full` | `search` lists three tools that find, describe and run the rest |
 | `TIKTOK_TOOL_TIMEOUT_MS` | none | Give up on any tool after this long |
 | `TIKTOK_DEBUG` | `0` | `1` prints debug lines on stderr |
+| `TIKTOK_DATA_DIR` | `~/Library/Application Support/slipway/tiktok` on macOS, `~/.local/share/slipway/tiktok` on Linux, `%LOCALAPPDATA%\slipway\tiktok` on Windows | Where `tokens.json` keeps each account's latest tokens between commands |
 
 ## 10. Writing safely 🛟
 
@@ -545,7 +546,7 @@ Captions and bios reach the model fenced and labelled as somebody else's words. 
 
 - **It can only see your own account.** TikTok's official API has no endpoint for anybody else's profile, videos, comments, followers, hashtags or search. Nothing here answers a question about a competitor or a trend, and no API key changes that.
 - **There is no comments API.** You cannot read or reply to comments on your own posts through TikTok's official API.
-- **Access tokens live 24 hours.** The server refreshes them for you. The refresh token behind it is valid for 365 days. TikTok's docs warn that a refresh may hand back a *different* refresh token, so the server keeps whichever one came back rather than the one you configured.
+- **Access tokens live 24 hours.** The server refreshes them for you. The refresh token behind it is valid for 365 days. TikTok's docs warn that a refresh may hand back a *different* refresh token, and TikTok then retires the old one. So whichever one came back is saved to `tokens.json` in `TIKTOK_DATA_DIR` the moment it arrives, and every command and server start reads it from there, while your config still holds the token you set. A new `tiktok-cli login` changes the token in your config, and that one wins and replaces the saved one.
 - **An unaudited app posts privately.** Until TikTok audits your app, every post lands private whatever privacy level you pass. Sandbox apps cannot post publicly at all.
 - **A public URL is not enough to publish from.** TikTok pulls media only from a domain verified under URL properties. An unverified domain fails with `url_ownership_unverified` however reachable the file is. A file from your disk (`video_path`) needs no domain: TikTok's [getting started guide](https://developers.tiktok.com/doc/content-posting-api-get-started) says "If you have the video file locally, set the source parameter to `FILE_UPLOAD`".
 - **A local file goes up in chunks, by TikTok's rules.** The [media transfer guide](https://developers.tiktok.com/doc/content-posting-api-media-transfer-guide) asks for chunks of at least 5 MB and at most 64 MB, the last one up to 128 MB, between 1 and 1000 of them, sent in order, and a video under 5 MB in one piece. This sends anything under 20 MB whole and the rest in 10,000,000-byte chunks, TikTok's own example size. MP4, WebM or MOV, up to 4 GB. A chunk that fails with a 5xx is sent again.
@@ -667,7 +668,7 @@ You can. Run `auth` once per account and list them in `TIKTOK_ACCOUNTS` as `name
 <details>
 <summary><b>What happens when my token expires?</b></summary>
 
-Access tokens expire every 24 hours and the server refreshes them silently. The refresh token behind them lasts 365 days, after which `doctor` reports the account as rejected and you run `auth` again.
+Access tokens expire every 24 hours and the server refreshes them silently. The refresh token behind them lasts 365 days, after which `doctor` reports the account as rejected and you run `auth` again. When a refresh hands back a new refresh token, it is saved to `tokens.json` in `TIKTOK_DATA_DIR` and used from then on, so the token in your config keeps working as the key to it.
 
 </details>
 

@@ -8,6 +8,21 @@
 | TikTok Content Posting API | v2 |
 | Node | >= 22 |
 
+## 2.1.1, 2026-10-27
+
+- **A rotated refresh token now survives the command that received it.** TikTok can answer a refresh with a new refresh token and retire the old one. 2.1.0 and earlier kept the new one in memory only, and every CLI command is a process of its own, so the next command started again from the token in the config, which TikTok had retired, and failed with exit 4, "Refresh token is invalid or expired": a `tiktok-cli doctor` followed minutes later by `tiktok-cli send-video-to-drafts` was enough. A long-running MCP server was safe until it restarted. Each account's latest refresh token, access token and expiry are now written right after every refresh to `tokens.json` in `TIKTOK_DATA_DIR`, by default this app's Slipway data folder (`~/Library/Application Support/slipway/tiktok` on macOS), 0600 in a 0700 folder, written to a temporary file and renamed into place. Every command and server start reads it.
+- **A new login wins.** Each saved entry is keyed by a SHA-256 hash of the config token it grew from, and is used only while the config still holds that token. A new token from `tiktok-cli login` starts from the config and replaces the account's old entry.
+- **Fewer refreshes.** A saved access token that still has five minutes left is used as it is, so most commands make no refresh call at all, which also keeps them clear of TikTok's rate limit.
+- **Two commands refreshing at once both keep working.** Before refreshing, a client reads the file again and takes a newer token another process saved; if its own refresh is refused, it looks once more and retries with the token the other process got.
+- **`revoke_access` deletes the account's saved tokens.** `doctor` says where the file is, how many accounts it holds, and warns if its mode is wider than 0600. No token is ever printed; a file that cannot be written is reported on stderr without one.
+- **`TIKTOK_DATA_DIR`** is described by `agent-context` and in the README.
+- **SECURITY.md said there is no token file.** There is one now, and it says why.
+- The refresh error no longer prints two periods after TikTok's own.
+
+### Upgrading
+
+An account TikTok already refused under 2.1.0 needs one `tiktok-cli login`, and the new token in your config: the token there was retired, and no file holds its successor. From then on, refreshes keep themselves.
+
 ## 2.1.0, 2026-10-27
 
 A video from a file on this machine. Still 14 tools.

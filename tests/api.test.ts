@@ -1,13 +1,19 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TikTokClient } from "../src/api/client.js";
 import { TikTokError, unwrap } from "../src/api/errors.js";
 import { loadAccounts, loadConfig, pickAccount } from "../src/config.js";
 
-const CONFIG = loadConfig({
-  TIKTOK_CLIENT_KEY: "key",
-  TIKTOK_CLIENT_SECRET: "secret",
-  TIKTOK_REFRESH_TOKEN: "refresh",
-} as NodeJS.ProcessEnv);
+/** A fresh token store each time, so a token saved by one test never answers for the next. */
+const config = () =>
+  loadConfig({
+    TIKTOK_CLIENT_KEY: "key",
+    TIKTOK_CLIENT_SECRET: "secret",
+    TIKTOK_REFRESH_TOKEN: "refresh",
+    TIKTOK_DATA_DIR: mkdtempSync(join(tmpdir(), "tiktok-api-")),
+  } as NodeJS.ProcessEnv);
 
 const ACCOUNT = { name: "default", refreshToken: "refresh" };
 
@@ -78,7 +84,7 @@ describe("client", () => {
     ]);
     vi.stubGlobal("fetch", fn);
 
-    const client = new TikTokClient(CONFIG, ACCOUNT);
+    const client = new TikTokClient(config(), ACCOUNT);
     await client.request("POST", "/video/list/", { fields: "id", body: { max_count: 20 } });
 
     expect(calls[0]!.url).toContain("/oauth/token/");
@@ -99,7 +105,7 @@ describe("client", () => {
     ]);
     vi.stubGlobal("fetch", fn);
 
-    const client = new TikTokClient(CONFIG, ACCOUNT);
+    const client = new TikTokClient(config(), ACCOUNT);
     await client.request("GET", "/user/info/");
 
     /* Second refresh must send the rotated token, not the original. Sending
@@ -118,7 +124,7 @@ describe("client", () => {
     ]);
     vi.stubGlobal("fetch", fn);
 
-    const client = new TikTokClient(CONFIG, ACCOUNT);
+    const client = new TikTokClient(config(), ACCOUNT);
     await expect(client.request("GET", "/user/info/")).resolves.toEqual({ ok: true });
   });
 
@@ -126,7 +132,7 @@ describe("client", () => {
     const { fn } = fakeFetch([{ status: 400, body: { error: "invalid_grant" } }]);
     vi.stubGlobal("fetch", fn);
 
-    const client = new TikTokClient(CONFIG, ACCOUNT);
+    const client = new TikTokClient(config(), ACCOUNT);
     await expect(client.request("GET", "/user/info/")).rejects.toThrow(/365 days|tiktok-mcp auth/);
   });
 });

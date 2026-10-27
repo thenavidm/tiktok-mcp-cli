@@ -49,6 +49,11 @@ export const app = slipway<ToolContext>({
     { env: "TIKTOK_CLIENT_SECRET", description: "The matching client secret.", secret: true },
     { env: "TIKTOK_REFRESH_TOKEN", description: "One account's refresh token, from `login`.", secret: true },
     { env: "TIKTOK_ACCOUNTS", description: "Several accounts, as name:token,name:token; replaces TIKTOK_REFRESH_TOKEN.", secret: true },
+    {
+      env: "TIKTOK_DATA_DIR",
+      description: "Where each account's latest tokens are saved between commands, as tokens.json, since TikTok may rotate the refresh token. Defaults to this app's Slipway data folder.",
+      tuning: true,
+    },
   ],
   links: { repository: "https://github.com/thenavidm/tiktok-mcp-cli" },
 });

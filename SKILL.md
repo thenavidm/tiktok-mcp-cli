@@ -196,6 +196,10 @@ retrying changes it. For a video, send the file with `--video-path` instead.
   shorter, with the long text going in `--description` at 4000.
 - Posting allows **6 calls a minute** per account, status checks 30,
   `get-creator-info` 20. A retry loop will hit this.
+- TikTok may rotate the refresh token on any refresh. The newest one is saved
+  to `tokens.json` in `TIKTOK_DATA_DIR` and used by every later command; never
+  copy tokens out of it or print them. If a refresh is still refused, the user
+  runs `tiktok-cli login` again and puts the new token in their config.
 - A file's `upload_url` lasts **one hour**. A failed upload means starting the
   post again, and that spends one of the 6 posting calls.
 - There is no scheduled publish time in TikTok's API. Do not invent one: a post

@@ -5,11 +5,25 @@
  * Node, the version, writes and the tool count.
  */
 
+import { statSync } from "node:fs";
 import type { DoctorCheck } from "@thenavidm/slipway";
 import { PUBLISH_SCOPES, READ_SCOPES } from "./api/client.js";
+import { TokenStore } from "./api/tokens.js";
 import type { ToolContext } from "./tools/kit.js";
 
 const LOGIN = "Run `tiktok-cli login` to get a refresh token, then set TIKTOK_REFRESH_TOKEN.";
+
+/** Where refreshed tokens are kept between commands, and whether only its owner can read it. Never a token. */
+function tokenStoreCheck(file: string): DoctorCheck {
+  const store = new TokenStore(file);
+  if (!store.exists()) return { name: "Token store", ok: true, detail: `${file}, written after the first token refresh` };
+  const saved = store.count();
+  const mode = process.platform === "win32" ? 0o600 : statSync(file).mode & 0o777;
+  const detail = `${file}, ${saved} account${saved === 1 ? "" : "s"} saved`;
+  return mode === 0o600
+    ? { name: "Token store", ok: true, detail: `${detail}, readable by you only` }
+    : { name: "Token store", ok: false, warn: true, detail: `${detail}, but its mode is ${mode.toString(8)}`, fix: `Run chmod 600 "${file}": it holds live tokens.` };
+}
 
 export async function doctor(ctx: ToolContext, options: { network: boolean }): Promise<DoctorCheck[]> {
   const { config } = ctx;
@@ -38,6 +52,7 @@ export async function doctor(ctx: ToolContext, options: { network: boolean }): P
       ? { name: "Accounts", ok: true, detail: config.accounts.map((account) => account.name).join(", ") }
       : { name: "Accounts", ok: false, detail: "none configured", fix: LOGIN },
   );
+  checks.push(tokenStoreCheck(config.tokenStore));
   if (!hasApp || !options.network) return checks;
 
   /* Test every account rather than the first. One dead token must not hide

@@ -7,6 +7,7 @@
  */
 
 import { NotConfiguredError, UsageError } from "@thenavidm/slipway";
+import { tokenStorePath } from "./api/tokens.js";
 
 export type Account = {
   /** Label used to target this account from a tool call. */
@@ -21,6 +22,8 @@ export type Config = {
   readOnly: boolean;
   allowDestructive: boolean;
   auditLog: string | null;
+  /** The file each account's latest tokens are saved to, since TikTok may rotate the refresh token. */
+  tokenStore: string;
 };
 
 /**
@@ -79,6 +82,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     readOnly: bool(env.TIKTOK_READ_ONLY),
     allowDestructive: env.TIKTOK_ALLOW_DESTRUCTIVE === undefined ? true : bool(env.TIKTOK_ALLOW_DESTRUCTIVE),
     auditLog: env.TIKTOK_AUDIT_LOG?.trim() || null,
+    tokenStore: tokenStorePath(env),
   };
 }
 
