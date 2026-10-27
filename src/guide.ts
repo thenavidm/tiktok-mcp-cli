@@ -9,7 +9,7 @@ Five things worth knowing before calling anything:
 
 1. This reaches ONLY the connected account. TikTok's official API has no endpoint for anybody else's profile, videos, comments or search. A question about a competitor, a hashtag or a trend has no answer here, and saying so is better than calling a tool and reporting an empty result as a finding.
 
-2. Call get_creator_info before post_video or post_photos. The privacy_level you pass must be one of the values it returns for that account, and TikTok rejects the post rather than falling back to something safe.
+2. Call get_creator_info before post_video or post_photos. The privacy_level you pass must be one of the values it returns for that account, and TikTok rejects the post rather than falling back to something safe. A video comes from video_url, a file on a domain verified in your TikTok app, or video_path, a file on this machine that is sent in chunks; photos come from URLs only.
 
 3. Publishing is public the moment TikTok's moderation clears it, and deleting later does not pull it out of feeds that already have it. So post_video, post_photos and revoke_access refuse to run without confirm: true. Pass it when the user has actually asked for that action, not to get past the refusal. Sending to drafts needs no confirmation: it lands in the creator's own inbox and goes nowhere until they finish it.
 

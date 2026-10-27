@@ -8,6 +8,22 @@
 | TikTok Content Posting API | v2 |
 | Node | >= 22 |
 
+## 2.1.0, 2026-10-27
+
+A video from a file on this machine. Still 14 tools.
+
+- **`post_video` and `send_video_to_drafts` take `video_path`**, a video file on the machine running the server, beside `video_url`. TikTok's [getting started guide](https://developers.tiktok.com/doc/content-posting-api-get-started): "If you have the video file locally, set the source parameter to `FILE_UPLOAD`". The init call declares `video_size`, `chunk_size` and `total_chunk_count`, and the file goes to the `upload_url` TikTok returns, chunk by chunk, before the call returns. No verified domain is needed, which `PULL_FROM_URL` requires.
+- **Chunks follow TikTok's [media transfer guide](https://developers.tiktok.com/doc/content-posting-api-media-transfer-guide)**: at least 5 MB and at most 64 MB each, the last up to 128 MB with the trailing bytes, `total_chunk_count` the size divided by the chunk size rounded down, 1 to 1000 chunks, in order, and a video under 5 MB whole. Anything under 20 MB goes whole; larger files go in 10,000,000-byte chunks, the size in TikTok's own worked example, so a file of 50,000,123 bytes is the five chunks the guide shows. MP4, WebM or MOV up to 4 GB, checked before TikTok hears of it. A chunk that fails with a 5xx is sent again; a 403 says the upload URL expired, since it is "valid for one hour after issuance" ([Direct Post reference](https://developers.tiktok.com/doc/content-posting-api-reference-direct-post)), and the error carries the `publish_id`. The file streams from disk rather than sitting in memory, and progress goes to a client that asks for it.
+- **A file's result says so**: `status: "uploaded"`, `source: "FILE_UPLOAD"`, the file name, bytes and chunks, and `get_post_status` documents `PROCESSING_UPLOAD`, the status a file shows until TikTok has all of it. The URL path returns exactly what it did, and 2.0's bare URL, `tiktok-cli send-video-to-drafts https://…`, still fills `video_url`.
+- **`post_video` and `post_photos` say what they do in TikTok's words** when they refuse or ask for approval: they post directly to the creator's account at the chosen privacy level once TikTok has processed the media, and only the TikTok app can delete it. They said Slipway's default, "is public or cannot be undone".
+- **Photos stay URL-only.** TikTok's [photo post reference](https://developers.tiktok.com/doc/content-posting-api-reference-photo-post) says "Only PULL_FROM_URL is allowed" for photos, so `post_photos` and `send_photos_to_drafts` take no file, and their descriptions now say why.
+- **No scheduling.** TikTok's posting endpoints take no publish time, and none is invented here.
+- **The app reads its settings from the environment Slipway hands it**, which is `process.env` when it runs, so tests can give it an account without touching the real environment.
+
+### Upgrading
+
+Nothing to change for a URL. A script that passed something other than a URL as `post-video`'s first bare word gets a usage error as before; a file needs `--video-path`. A file sent from a client that stops waiting after a minute, such as Codex by default, needs `tool_timeout_sec` raised for this server, or the CLI.
+
 ## 2.0.1, 2026-10-05
 
 - **Built on Slipway 0.1.17**, which a fresh install of 2.0.0 already used. Since the Slipway 2.0.0 was measured on, 0.1.10, `which` also reads a tool's argument names and prints a title once where a description opens with it, and the general help names the settings that connect an account and the safety switches and counts the rest, which `agent-context` describes one by one. [Slipway's changelog](https://github.com/thenavidm/slipway/blob/main/CHANGELOG.md) lists the rest.

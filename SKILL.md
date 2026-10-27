@@ -3,8 +3,9 @@ name: tiktok
 description: |
   TikTok account manager, as MCP tools and as `tiktok-cli` shell commands. Use
   when the user mentions TikTok, their TikTok profile or follower count, video
-  stats or best-performing posts, publishing a video or a photo carousel,
-  sending a draft to their TikTok inbox, or tracking a post through moderation.
+  stats or best-performing posts, publishing a video (from a file on their
+  machine or a URL) or a photo carousel, sending a draft to their TikTok inbox,
+  or tracking a post through moderation.
   Also use when someone asks what TikTok's API can and cannot see, because most
   of what people expect from it does not exist. And whenever they want to
   script, pipe or cron any of it.
@@ -97,7 +98,14 @@ when a token has expired.
 account. TikTok rejects the post rather than falling back to something safe,
 and the allowed set changes the moment the creator flips their account private.
 
+**A video comes from a file or a URL, one of the two.** `--video-path` sends a
+file on this machine (MP4, WebM or MOV, up to 4 GB) in chunks before the
+command returns, and needs no verified domain. `--video-url` makes TikTok pull
+it, which needs the domain verified. Prefer `--video-path` for a file the user
+has. Photos take URLs only: TikTok's photo posts accept nothing else.
+
 **Publishing returns a `publish_id`, not a post.** Poll `get-post-status`. A
+file from disk reports `PROCESSING_UPLOAD` until TikTok has all of it. A
 public post reports no `post_id` until moderation clears it, usually a minute
 and sometimes hours, so an empty `post_id` alongside `PUBLISH_COMPLETE` is
 normal rather than a failure to chase.
@@ -176,7 +184,7 @@ testing, pass `SELF_ONLY` deliberately and tell them why, rather than passing
 **A public URL is not enough.** TikTok pulls media only from a domain proved
 under URL Properties in the app settings. A perfectly reachable link on an
 unverified domain fails with `url_ownership_unverified`, and no amount of
-retrying changes it.
+retrying changes it. For a video, send the file with `--video-path` instead.
 
 ## Limits that bite
 
@@ -188,6 +196,10 @@ retrying changes it.
   shorter, with the long text going in `--description` at 4000.
 - Posting allows **6 calls a minute** per account, status checks 30,
   `get-creator-info` 20. A retry loop will hit this.
+- A file's `upload_url` lasts **one hour**. A failed upload means starting the
+  post again, and that spends one of the 6 posting calls.
+- There is no scheduled publish time in TikTok's API. Do not invent one: a post
+  goes out when TikTok has processed it.
 
 ## Untrusted content
 

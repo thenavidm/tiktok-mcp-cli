@@ -21,6 +21,7 @@ import {
   z,
   type Risk,
   type Tool,
+  type ToolContext as RunContext,
 } from "@thenavidm/slipway";
 import { TikTokClient } from "../api/client.js";
 import { TikTokError } from "../api/errors.js";
@@ -62,8 +63,13 @@ export type ToolSpec<S extends Shape> = {
   description: string;
   schema: S;
   risk: Risk;
+  /** What a confirmed call does, in TikTok's words, for the refusal and the approval form. */
+  consequence?: string;
+  /** Inputs a bare word on the command line fills, in order. */
+  positional?: string[];
   idempotent?: boolean;
-  handler: (args: z.infer<z.ZodObject<S>>, ctx: ToolContext) => Promise<unknown>;
+  /** `ctx` also carries Slipway's run context: `signal` to stop, `progress` to report. */
+  handler: (args: z.infer<z.ZodObject<S>>, ctx: RunContext<ToolContext>) => Promise<unknown>;
   /** One line for the audit log and the confirm message, when this is a write. */
   summary?: (args: z.infer<z.ZodObject<S>>) => string;
 };
@@ -107,13 +113,15 @@ export function toSlipway(error: TikTokError): SlipwayError {
 
 export function defineTool<S extends Shape>(spec: ToolSpec<S>): Tool<ToolContext> {
   const { confirm: _confirm, ...shape } = spec.schema as Shape;
-  const handler = spec.handler as (args: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>;
+  const handler = spec.handler as (args: Record<string, unknown>, ctx: RunContext<ToolContext>) => Promise<unknown>;
   return kit.defineTool({
     name: spec.name,
     title: spec.title,
     description: spec.description,
     input: z.object(shape),
     risk: spec.risk,
+    ...(spec.consequence ? { consequence: spec.consequence } : {}),
+    ...(spec.positional ? { positional: spec.positional } : {}),
     ...(spec.idempotent !== undefined ? { idempotent: spec.idempotent } : {}),
     ...(spec.summary ? { summary: spec.summary as (args: Record<string, unknown>) => string } : {}),
     handler: async (args, ctx) => {

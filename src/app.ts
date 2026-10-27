@@ -28,7 +28,7 @@ export const app = slipway<ToolContext>({
   package: "@thenavidm/tiktok-mcp-cli",
   description: "a TikTok account you own: its profile and videos, posting and drafts, through TikTok's official API",
   instructions: INSTRUCTIONS,
-  context: () => makeContext(loadConfig()),
+  context: (env) => makeContext(loadConfig(env)),
   configured: ({ config }) => Boolean(config.clientKey && config.clientSecret && config.accounts.length > 0),
   secrets: ({ config }) => [config.clientSecret, ...config.accounts.map((account) => account.refreshToken)],
   tools: ALL_TOOLS,

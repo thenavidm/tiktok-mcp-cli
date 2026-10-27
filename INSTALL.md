@@ -101,10 +101,17 @@ finishing it in the app.
 Never send a scope the app does not have. TikTok fails the entire sign-in
 rather than granting the rest.
 
+## Publishing from your disk needs nothing more
+
+A video file on this machine goes to TikTok directly: `--video-path`
+(`video_path` over MCP) sends it with `source: FILE_UPLOAD`, in chunks, and no
+domain is involved. Skip the next section if that is how you post.
+
 ## Publishing from a URL
 
-TikTok pulls media rather than accepting an upload, and only from a domain you
-have proved you own.
+For `--video-url`, and for every photo, TikTok pulls the media instead, and only
+from a domain you have proved you own. Photos have no other way in: TikTok's
+photo posts accept only `PULL_FROM_URL`.
 
 1. **URL properties** at the top of the app page
 2. **Verify properties**, with the app in the right mode

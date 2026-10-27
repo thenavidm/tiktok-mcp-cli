@@ -15,7 +15,7 @@ One install gives you both surfaces, the same 14 tools under the same names.
 
 It reads your real numbers. Views, likes, comments and shares per post, straight from TikTok rather than a scraper's guess.
 
-It publishes too: a video or a photo carousel, or a draft into your TikTok inbox that you finish in the app.
+It publishes too: a video straight from a file on your disk or from a URL, a photo carousel, or a draft into your TikTok inbox that you finish in the app.
 
 Everything is scoped to accounts you connect yourself.
 
@@ -49,8 +49,9 @@ tiktok-cli list-videos --limit 50                 # your posts, newest first
 tiktok-cli top-videos --metric shares --limit 10  # ranked by what travels
 tiktok-cli stats-summary --scan 200               # mean, median, p90, cadence
 tiktok-cli search-my-videos --query "AI OS"
+tiktok-cli send-video-to-drafts --video-path ~/Movies/clip.mp4   # a file on this machine
 tiktok-cli send-video-to-drafts --video-url https://cdn.example.com/clip.mp4
-tiktok-cli post-video --video-url https://cdn.example.com/clip.mp4 \
+tiktok-cli post-video --video-path ~/Movies/clip.mp4 \
   --privacy-level SELF_ONLY --title "Shipped." --confirm
 tiktok-cli list-videos --limit 200 --json | jq '[.videos[] | select(.views > 10000)] | length'
 tiktok-cli <command> --help                       # what any command takes
@@ -141,6 +142,7 @@ All 14 are in [section 7](#7-tools-%EF%B8%8F).
 - Find every video where I mentioned the AI OS and tell me how they performed.
 - Rank my last 200 posts by shares rather than views. Shares are the ones that travel.
 - Draft a TikTok from this MP4 and put it in my inbox so I can review it on my phone.
+- Post ~/Movies/short.mp4 to TikTok, private for now, and tell me when it is live.
 - Publish this photo carousel with the first image as the cover, comments off.
 - Did the video I posted twenty minutes ago clear moderation yet?
 - My follower count and total likes, then work out my average views per follower.
@@ -234,15 +236,15 @@ npx -y @thenavidm/tiktok-mcp-cli auth
 
 It prints a URL. Open it, approve the access, and the terminal prints a refresh token valid for about 365 days. Add `--publish` if you added the publishing scopes.
 
-### Step 5: Verify a domain, only if you will publish
+### Step 5: Verify a domain, only to publish from a URL
 
-TikTok downloads media from a URL rather than accepting an upload, and it will only pull from a domain you have proved you own.
+A video file on your disk needs none of this: `--video-path` sends it to TikTok directly (`FILE_UPLOAD`). A video from `--video-url`, and every photo, is pulled by TikTok from the URL instead (`PULL_FROM_URL`), and TikTok will only pull from a domain you have proved you own.
 
 1. Click **URL properties** at the top of the app page.
 2. Click **Verify properties**.
 3. Verify by **Domain** or by **URL prefix**, and follow the instructions shown.
 
-Skip this if you are only reading, and skip it if you only use the drafts tools.
+Skip this if you are only reading, or if every video you post comes from your disk.
 
 ### Revoking access later
 
@@ -369,7 +371,8 @@ The two failures that actually happen:
 ## 6. Which surface, and what each costs
 
 Both surfaces are the same program with the same 14 tools. The
-difference is when the model pays for them. Measured in Claude Code:
+difference is when the model pays for them. Measured in Claude Code on 2.0;
+2.1.0's longer descriptions for the video tools have not been measured yet:
 
 | Cost | MCP server | CLI |
 |---|---|---|
@@ -439,11 +442,15 @@ it now lists `which`, `install` and the exit codes, which 1.1's did not, and is
 | Tool | What it does |
 |---|---|
 | `get_creator_info` | Which privacy levels this account can post at. Call it first |
-| `post_video` | Publish a video from a public URL. Needs `confirm` |
-| `post_photos` | Publish a carousel of up to 35 images. Needs `confirm` |
-| `send_video_to_drafts` | Send a video to your TikTok inbox to finish in the app |
-| `send_photos_to_drafts` | Send photos to your inbox |
-| `get_post_status` | Track a post through download, moderation and publication |
+| `post_video` | Publish a video from a file on this machine or a public URL. Needs `confirm` |
+| `post_photos` | Publish a carousel of up to 35 images from URLs. Needs `confirm` |
+| `send_video_to_drafts` | Send a video, from a file or a URL, to your TikTok inbox to finish in the app |
+| `send_photos_to_drafts` | Send photos, from URLs, to your inbox |
+| `get_post_status` | Track a post through upload or download, moderation and publication |
+
+`post_video` and `send_video_to_drafts` take `video_path` or `video_url`, one of
+the two. A file is sent in chunks before the call returns, so a large one takes
+as long as your upload speed needs; the result counts the bytes and chunks.
 
 ## 8. Output and exit codes
 
@@ -540,9 +547,14 @@ Captions and bios reach the model fenced and labelled as somebody else's words. 
 - **There is no comments API.** You cannot read or reply to comments on your own posts through TikTok's official API.
 - **Access tokens live 24 hours.** The server refreshes them for you. The refresh token behind it is valid for 365 days. TikTok's docs warn that a refresh may hand back a *different* refresh token, so the server keeps whichever one came back rather than the one you configured.
 - **An unaudited app posts privately.** Until TikTok audits your app, every post lands private whatever privacy level you pass. Sandbox apps cannot post publicly at all.
-- **A public URL is not enough to publish from.** TikTok pulls media only from a domain verified under URL properties. An unverified domain fails with `url_ownership_unverified` however reachable the file is.
+- **A public URL is not enough to publish from.** TikTok pulls media only from a domain verified under URL properties. An unverified domain fails with `url_ownership_unverified` however reachable the file is. A file from your disk (`video_path`) needs no domain: TikTok's [getting started guide](https://developers.tiktok.com/doc/content-posting-api-get-started) says "If you have the video file locally, set the source parameter to `FILE_UPLOAD`".
+- **A local file goes up in chunks, by TikTok's rules.** The [media transfer guide](https://developers.tiktok.com/doc/content-posting-api-media-transfer-guide) asks for chunks of at least 5 MB and at most 64 MB, the last one up to 128 MB, between 1 and 1000 of them, sent in order, and a video under 5 MB in one piece. This sends anything under 20 MB whole and the rest in 10,000,000-byte chunks, TikTok's own example size. MP4, WebM or MOV, up to 4 GB. A chunk that fails with a 5xx is sent again.
+- **The upload URL lasts an hour.** TikTok's [Direct Post reference](https://developers.tiktok.com/doc/content-posting-api-reference-direct-post) says it is "valid for one hour after issuance", so the file has to finish inside that hour.
+- **A big file outlasts some clients' patience.** The upload happens inside the call. Claude Code waits; Codex gives up after 60 seconds unless you raise `tool_timeout_sec` for this server in its `config.toml`. The CLI always waits.
+- **Photos come from URLs only.** TikTok's [photo post reference](https://developers.tiktok.com/doc/content-posting-api-reference-photo-post) says "Only PULL_FROM_URL is allowed", so a local image has to be hosted on your verified domain first.
+- **There is no scheduled time.** TikTok's posting endpoints take no publish time, so a post goes out when TikTok has processed it. Schedule it from whatever runs the command.
 - **`privacy_level` must come from `get_creator_info`.** TikTok rejects a value that is not in that account's current list rather than falling back to something safe.
-- **Publishing returns a job, not a post.** Poll `get_post_status`. A public post reports no post id until moderation clears it, usually a minute and sometimes hours.
+- **Publishing returns a job, not a post.** Poll `get_post_status`. A file from your disk shows `PROCESSING_UPLOAD` until TikTok has all of it. A public post reports no post id until moderation clears it, usually a minute and sometimes hours.
 - **Cover image URLs expire after 6 hours.** Re-fetch with `get_videos` rather than storing the link.
 - **Five pending drafts per 24 hours.** TikTok caps unpublished API drafts per account.
 - **A photo post's `title` caps at 90**, far shorter than a video caption's 2200. Its `description` takes 4000, so the long text belongs there. TikTok counts all three in UTF-16 runes, which is its own phrasing for the unit.
@@ -559,7 +571,10 @@ Run `doctor` first. It checks every account and names what is unavailable.
 | Token rejected on every call | The refresh token expired after 365 days, or you revoked the app |
 | `redirect_uri` error during `auth` | The URI in your app is not byte-identical to `http://127.0.0.1:8481/callback/`, usually the trailing slash |
 | `auth` hangs, never returns | Port 8481 is taken. Run `auth --port 9000` and register that URI too |
-| `url_ownership_unverified` | The media domain is not verified under URL properties |
+| `url_ownership_unverified` | The media domain is not verified under URL properties. For a video, send the file with `--video-path` instead |
+| "TikTok's upload URL expired" | The file took over an hour to send. Start the post again |
+| "TikTok takes MP4, WebM or MOV video" | Convert the file first; nothing was sent |
+| A large `--video-path` times out in Codex | Codex stops waiting after 60 seconds. Raise `tool_timeout_sec` for this server, or use the CLI |
 | `privacy_level_option_mismatch` | You passed a level not in `get_creator_info`, often after the account went private |
 | Post says complete, has no post id | Normal. Moderation has not cleared it yet |
 | `unaudited_client_can_only_post_to_private_accounts` | Expected on a sandbox or unaudited app. Post `SELF_ONLY`, or apply for the audit |

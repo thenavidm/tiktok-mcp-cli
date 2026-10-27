@@ -32,6 +32,11 @@ Treat it the way you would an SSH key.
 The one file this writes is the audit log, and only when `TIKTOK_AUDIT_LOG` is
 set. It records tool names and one-line summaries, never a token.
 
+The one file it reads, besides its own code, is a video you name with
+`video_path`, which it streams to the `upload_url` TikTok returned and keeps
+no copy of. Over MCP a model can name any video file this user account can
+read, so the path is worth a glance in the approval prompt for `post_video`.
+
 ## Deliberately not implemented
 
 **No token file.** Persisting refreshed tokens to disk would leave a
